@@ -21,6 +21,7 @@ tomlkit = "^0.7.2"
 ipython = "<7"
 click_odoo = "^1.5.0"
 click-odoo-contrib = "^1.15.0"
+networkx = "<2.7"
 
 [tool.poetry.dev-dependencies]
 ipython = "*"
@@ -52,7 +53,7 @@ envlist = "py36, docs"
 skipsdist = true
 
 [odoo]
-addons_path = ['addons']
+addons_path = ['addons', 'custom_addons']
 
 #[testenv]
 #skip_install = true
