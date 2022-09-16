@@ -6,6 +6,26 @@ from odoo.tools import PoFile
 from babel.messages import extract
 
 
+def babel_extract_terms_v11(fname, path, root, extract_method="python", trans_type='code',
+                        extra_comments=None, extract_keywords={'_': None}):
+    module, fabsolutepath, _, display_path = verified_module_filepaths(fname, path, root)
+    extra_comments = extra_comments or []
+    if not module: return
+    src_file = open(fabsolutepath, 'rb')
+    options = {}
+    if extract_method == 'python':
+        options['encoding'] = 'UTF-8'
+    try:
+        for extracted in extract.extract(extract_method, src_file, keywords=extract_keywords, options=options):
+            # Babel 0.9.6 yields lineno, message, comments
+            # Babel 1.3 yields lineno, message, comments, context
+            lineno, message, comments = extracted[:3]
+            push_translation(module, trans_type, display_path, lineno, encode(message), comments + extra_comments)
+    except Exception:
+        _logger.exception("Failed to extract terms from %s", fabsolutepath)
+    finally:
+        src_file.close()
+
 def extract_t(path, extract_method='python', trans_type='code', extra_keywords={'_': None}, options=options,
               extra_comments=None):
 
@@ -28,7 +48,7 @@ def extract_t(path, extract_method='python', trans_type='code', extra_keywords={
     return result
 
 
-def generate_pot(module_path):
+def extract_terms(module_path):
     terms = []
     module_path = pathlib.Path(module_path)
 
@@ -54,6 +74,8 @@ def generate_pot(module_path):
                 babel_extract_terms(file_name, path, root, 'odoo.tools.translate:babel_extract_qweb',
                                     extra_comments=[WEB_TRANSLATION_COMMENT])
 
+    return terms
+
     # we now group the translations by source. That means one translation per source.
     grouped_rows = {}
     for module, type, name, res_id, src, comments in sorted(terms):
@@ -64,7 +86,8 @@ def generate_pot(module_path):
         row.setdefault('tnrs', []).append((type, name, res_id))
         row.setdefault('comments', set()).update(comments)
 
-    with open(os.path.join(module_path, f'i18n/{module_name}.pot'), 'wb') as buffer:
+    pot_file_path = os.path.join(module_path, f'i18n/{module_name}.pot')
+    with open(pot_file_path, 'wb') as buffer:
         writer = PoFile(buffer)
         writer.write_infos(modules)
 
