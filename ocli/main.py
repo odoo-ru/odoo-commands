@@ -1,6 +1,12 @@
+import datetime
+# from datetime import date
+import time
+
+
+
 
 def main():
-    pass
+    test_time()
 
 
 if __name__ == '__main__':
