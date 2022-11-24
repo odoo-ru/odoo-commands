@@ -75,6 +75,11 @@ def extract_2(module_name, module_path):
     module_path = pathlib.Path(module_path)
     for extract_method, path_template in {
         ('python', '**/*.py'),
+        # ('mako', '**/*.mako'),
+        # TODO Skip static/js/lib dir
+        ('javascript', 'static/src/js/**/*.js'),
+        # ('odoo.tools.translate:babel_extract_qweb', 'static/src/xml/**/*.xml'),
+        ('odoo_commands.odoo_translate:babel_extract_qweb', 'static/src/xml/**/*.xml'),
     }:
         trans_type = 'report' if extract_method == 'mako' else 'code'
         extract_keywords = {'_t': None, '_lt': None} if extract_method == 'javascript' else {'_': None}

@@ -2,8 +2,69 @@ import re
 import codecs
 import logging
 from datetime import datetime
+from lxml import etree
 
 _logger = logging.getLogger(__name__)
+
+
+SKIPPED_ELEMENT_TYPES = (etree._Comment, etree._ProcessingInstruction, etree.CommentBase, etree.PIBase, etree._Entity)
+SKIPPED_ELEMENTS = ('script', 'style', 'title')
+
+
+def _push(callback, term, source_line):
+    """ Sanity check before pushing translation terms """
+    term = (term or "").strip()
+    # Avoid non-char tokens like ':' '...' '.00' etc.
+    if len(term) > 8 or any(x.isalpha() for x in term):
+        callback(term, source_line)
+
+
+def _extract_translatable_qweb_terms(element, callback):
+    """ Helper method to walk an etree document representing
+        a QWeb template, and call ``callback(term)`` for each
+        translatable term that is found in the document.
+
+        :param etree._Element element: root of etree document to extract terms from
+        :param Callable callback: a callable in the form ``f(term, source_line)``,
+                                  that will be called for each extracted term.
+    """
+    # not using elementTree.iterparse because we need to skip sub-trees in case
+    # the ancestor element had a reason to be skipped
+    for el in element:
+        if isinstance(el, SKIPPED_ELEMENT_TYPES): continue
+        if (el.tag.lower() not in SKIPPED_ELEMENTS
+                and "t-js" not in el.attrib
+                and not ("t-jquery" in el.attrib and "t-operation" not in el.attrib)
+                and el.get("t-translation", '').strip() != "off"):
+            _push(callback, el.text, el.sourceline)
+            for att in ('title', 'alt', 'label', 'placeholder'):
+                if att in el.attrib:
+                    _push(callback, el.attrib[att], el.sourceline)
+            _extract_translatable_qweb_terms(el, callback)
+        _push(callback, el.tail, el.sourceline)
+
+
+def babel_extract_qweb(fileobj, keywords, comment_tags, options):
+    """Babel message extractor for qweb template files.
+
+    :param fileobj: the file-like object the messages should be extracted from
+    :param keywords: a list of keywords (i.e. function names) that should
+                     be recognized as translation functions
+    :param comment_tags: a list of translator tags to search for and
+                         include in the results
+    :param options: a dictionary of additional options (optional)
+    :return: an iterator over ``(lineno, funcname, message, comments)``
+             tuples
+    :rtype: Iterable
+    """
+    result = []
+    def handle_text(text, lineno):
+        result.append((lineno, None, text, []))
+    tree = etree.parse(fileobj)
+    _extract_translatable_qweb_terms(tree.getroot(), handle_text)
+    return result
+
+
 
 def quote(s):
     """Returns quoted PO term string, with special PO characters escaped"""
