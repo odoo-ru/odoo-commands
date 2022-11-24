@@ -7,7 +7,7 @@ from functools import lru_cache
 from typing import Set
 import time
 
-from click_odoo_contrib.initdb import _walk
+# from click_odoo_contrib.initdb import _walk
 
 
 def test_time():
@@ -125,6 +125,7 @@ class OdooProject:
 
     def read_dependencies(self, module_names: set):
         for module_name in module_names:
+            pass
 
     def cache_key(self, module_names, timestamp):
         module_mtime = {}
@@ -134,7 +135,7 @@ class OdooProject:
 
 
 
-    def modules_cache(self, timestamp):
+    # def modules_cache(self, timestamp):
         # to_install + their deps - their unwanted deps - old modules - their deps
 
 

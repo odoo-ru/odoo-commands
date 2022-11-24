@@ -1,6 +1,6 @@
 [tool.poetry]
-name = "ocli"
-version = "0.1-dev"
+name = "odoo-commands"
+version = "0.1.1-dev"
 description = "Project description"
 authors = ["Dmitry Voronin <dimka665@gmail.com>"]
 
@@ -23,6 +23,8 @@ click_odoo = "^1.5.0"
 click-odoo-contrib = "^1.15.0"
 networkx = "<2.7"
 manifestoo-core = "^0.10.2"
+typer = {extras = ["all"], version = "^0.7.0"}
+Babel = "^2.11.0"
 
 [tool.poetry.dev-dependencies]
 ipython = "*"
@@ -33,6 +35,9 @@ pytest-pythonpath = "*"
 mypy = "*"
 sphinx = "*"
 sphinx-autobuild = "*"
+
+[tool.poetry.scripts]
+oc = "odoo_commands.main:app"
 
 [tool.pytest]
 testpaths = "tests"
@@ -53,8 +58,9 @@ check_untyped_defs = true
 envlist = "py36, docs"
 skipsdist = true
 
-[odoo]
-addons_path = ['addons', 'custom_addons']
+[tool.odoo]
+project-module-dirs = ['addons']
+third-party-module-dirs = ['custom_addons']
 
 #[testenv]
 #skip_install = true

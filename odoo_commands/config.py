@@ -7,4 +7,7 @@ def read_config(file_path):
         return tomlkit.loads(config_file.read())
 
 
-pyproject = read_config('pyproject.toml')
+def odoo_project_config(file_path):
+    return read_config(file_path)['tool']['odoo']
+
+# pyproject = read_config('pyproject.toml')
