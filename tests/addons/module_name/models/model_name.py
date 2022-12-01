@@ -4,8 +4,9 @@ from odoo import models, fields, api, _
 class ModelName(models.Model):
     _inherit = 'model.name'
 
-    no_string_field = fields.Char()
-    string_field = fields.Char('Field String')
+    name_1 = fields.Char()
+    name_2 = fields.Char('Field String')
+    name_3 = fields.Char(string='Field String')
 
     def method(self):
         return _('Code')

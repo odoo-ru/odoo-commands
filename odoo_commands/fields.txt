@@ -1,0 +1,34 @@
+Field
+    string
+
+Id
+Boolean
+Integer
+Date
+Datetime
+Binary
+Reference
+
+Float
+    string, digits
+Monetary
+    string, currency_field
+
+_String
+    string
+Char(_String)
+Text(_String)
+Html(_String)
+
+Selection
+    selection, string
+
+_Relational
+Many2one(_Relational)
+    comodel_name, string
+
+_RelationalMulti(_Relational)
+One2many(_RelationalMulti)
+    comodel_name, inverse_name, string
+Many2many(_RelationalMulti)
+    comodel_name, relation, column1, column2, string
