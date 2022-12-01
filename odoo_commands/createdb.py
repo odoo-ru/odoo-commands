@@ -7,7 +7,7 @@ from functools import lru_cache
 from typing import Set
 import time
 
-# from click_odoo_contrib.initdb import _walk
+from click_odoo_contrib.initdb import _walk
 
 
 def test_time():

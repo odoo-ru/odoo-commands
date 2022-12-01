@@ -1,22 +1,24 @@
 import ast
 import os
 from functools import lru_cache
-from typing import List
+from typing import List, Set
 
 import networkx
+import networkx as nx
 
 
 class Module:
     # __slots__ = ('path', 'name')
     # sequence = 100
 
-    def __init__(self, project, path, name):
-        self.project = project
+    def __init__(self, path, name):
+        # self.project = project
         self.path = path
         self.name = name
         # self.attrs = {}
+        self.read_manifest()
 
-
+    def read_manifest(self):
     # @property
     # @lru_cache(1024)
     # def manifest(self):
@@ -31,19 +33,27 @@ class Module:
         #     attrs['depends'] = ['base']
         self.attrs = attrs
 
-        depends = attrs.get('depends')
-        self.depends = depends if depends else ['base']
+        if self.name == 'base':
+            self.depends = []
+        else:
+            depends = attrs.get('depends')
+            self.depends = depends if depends else ['base']
 
-        self.dependencies = None
+    # @lru_cache(1024)
+    # def expanded_dependencies(self):
+    #     if self.dependencies:
+    #         return
+    #     for module_name in self.depends:
+    #         module = self.project.module(module_name)
+    #         module.expanded_dependencies()
+    #     self.expanded_dependencies
 
-    @lru_cache(1024)
-    def expanded_dependencies(self):
-        if self.dependencies:
-            return
-        for module_name in self.depends:
-            module = self.project.module(module_name)
-            module.expanded_dependencies()
-        self.expanded_dependencies
+    # def topological_depends(self):
+    #     graph = nx.DiGraph()
+    #     return list(nx.lexicographical_topological_sort(graph, key=lambda module: module.sequence))
+
+    def parse_models(self):
+        pass
 
 
 class Model:
@@ -51,7 +61,8 @@ class Model:
 
 
 class Field:
-    pass
+    def __init__(self):
+        self.name = ''
 
 
 class OdooProject:
@@ -63,25 +74,54 @@ class OdooProject:
     def module_path(self, module_name):
         for modules_path in self.modules_paths:
             module_path = os.path.join(modules_path, module_name)
-            if not os.path.isdir(modules_path):
-                raise ValueError(f'No module found: {module_name}')
-            return module_path
+            if os.path.isdir(module_path) and os.path.isfile(os.path.join(module_path, '__manifest__.py')):
+                return module_path
+
+        raise ValueError(f'No module found: {module_name}')
 
     def field(self, module_name, model_name, field_name):
         module = self.module(module_name)
         field = Field()
-        for module in module.topological_depends():
-            for model_def in module.model_defs():
-                if model_def._name == model_name:
-                    for attr_def in model_def:
-                        if attr_def is field name:
-                            field.apply(attr_def)
+        # for module in module.topological_depends():
+        for module in self.topological_depends(module):
+            for model_def in module.model_defs(model_name):
+                for attr_def in model_def.attr_defs(field_name):
+                    field.apply(attr_def)
+        return field
 
+    def topological_depends(self, module):
+        # expanded_modules = self.expanded(module)
+        graph = self.module_graph(module)
+        return topologic(graph)
 
+    def module_graph_OFF(self, module_name, processed_modules=set()):
+        edges = []
+        processed_modules.add(module_name)
+        module = self.module(module_name)
+        edges.extend([(module, depend_module) for depend_module in module.depends])
+        for dependency_module_name in module.depends:
+            if dependency_module_name not in processed_modules:
+                edges.extend(self.module_graph(dependency_module_name, processed_modules))
+        return edges
+
+    def module_graph(self, module_name):
+        processed_modules = set()
+
+        def recursive_module_graph(module):
+            edges = []
+            processed_modules.add(module)
+            for dependency_module_name in module.depends:
+                dependency_module = self.module(dependency_module_name)
+                edges.append((module, dependency_module))
+                if dependency_module not in processed_modules:
+                    edges.extend(self.module_graph(dependency_module))
+            return edges
+
+        return recursive_module_graph(self.module(module_name))
 
     @lru_cache(maxsize=1024)
     def module(self, module_name):
-        return Module()
+        return Module(self.module_path(module_name), module_name)
 
 
     def attr(self, model_name, attr_name, module=None):
