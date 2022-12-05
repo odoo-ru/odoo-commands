@@ -37,6 +37,7 @@ pytest-pythonpath = "*"
 mypy = "*"
 sphinx = "*"
 sphinx-autobuild = "*"
+ipdb = "^0.13.9"
 
 [tool.poetry.scripts]
 oc = "odoo_commands.main:app"
