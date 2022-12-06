@@ -6,7 +6,11 @@ import astroid
 from astroid import nodes
 from ipdb import iex
 
+from odoo_commands.parsing import parse_python_module
+
 logger = logging.getLogger(__name__)
+# logging.basicConfig()
+# logger.setLevel(logging.DEBUG)
 
 
 def is_simple_assignment(node: nodes.Assign):
@@ -26,6 +30,7 @@ Lambda = collections.namedtuple('Lambda', 'string')
 Call = collections.namedtuple('Call', 'string')
 Other = collections.namedtuple('Other', 'string')
 Unparsable = collections.namedtuple('Unparsalbe', 'string')
+
 
 class ModelDef:
     MODEL_ATTR_NAMES = {
@@ -55,31 +60,20 @@ class ModelDef:
         nodes.UnaryOp,
     }
 
-    def __init__(self, node: nodes.ClassDef):
-    # def __init__(self, vals):
-        # self.node = node
-        # self.parse(node)
+    def __init__(self, node: nodes.ClassDef, global_scope):
         self._items = collections.OrderedDict()
-        self.parse(node)
+        self.parse(node, global_scope)
 
     def __setitem__(self, name, value):
         self._items[name] = value
         return super().__setattr__(name, value)
 
-    # @classmethod
-    def parse(cls, class_def: nodes.ClassDef):
-        # vals = {}
-        # model_def = cls({})
+    def parse(self, class_def: nodes.ClassDef):
         for node in class_def.body:
             if isinstance(node, nodes.Assign):
-                # vals.update(cls._parse_assignment(node))
-                cls._parse_assignment(node)
-        # return ModelDef(vals)
+                self._parse_assignment(node)
 
-    # @classmethod
     def _parse_assignment(cls, node: nodes.Assign):
-        # vals = {}
-
         if len(node.targets) != 1:
             logger.warning('Assignment %s', node.as_string())
             return
@@ -207,37 +201,29 @@ def is_odoo_module(path):
         path = pathlib.Path(path)
     return path.is_dir() and (path / '__manifest__.py').is_file()
 
-MODEL_BASE_NAMES = {'models.' + class_name for class_name in {
-    'BaseModel',
-    'AbstractModel',
-    'Model',
-    'TransientModel',
-}}
 
-def is_model(node):
-    return isinstance(node, nodes.ClassDef) and any(base_name in MODEL_BASE_NAMES for base_name in node.basenames)
-
-
-def parse_module(module_path):
+def parse_odoo_module(module_path):
     for path in module_path.glob('**/*.py'):
+        logger.debug('Parse Odoo module file: %s', path)
+        rel_path = path.relative_to(module_path)
+        if rel_path.parts[0] == 'controllers':
+            continue
         if path.name.startswith('test_'):
             continue
+        if path.name == '__manifest__.py':
+            continue
 
-        with open(path) as python_file:
-            python_module = astroid.parse(python_file.read(), path=path)
-            for node in python_module.values():
-                # print(node)
-                if is_model(node):
-                    # return node
-                    # return ModelDef(node)
-                    yield ModelDef(node)
+        yield from parse_python_module(path)
+
 
 @iex
 def generate(modules_path):
     model_defs = []
+    logger.debug('Scan Odoo addons dir: %s', modules_path)
     for path in pathlib.Path(modules_path).iterdir():
-        if is_odoo_module(path):
-            model_defs += list(parse_module(path))
+        if is_odoo_module(path) and not path.name.startswith('test_'):
+            logger.debug('Found Odoo module: %s', path)
+            model_defs += list(parse_odoo_module(path))
             # return parse_module(path)
             # for model_def in parse_module(path):
             #     pass

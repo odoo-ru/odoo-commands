@@ -17,7 +17,6 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.8"
-tomlkit = "^0.7.2"
 ipython = "*"
 click_odoo = "^1.5.0"
 click-odoo-contrib = "^1.15.0"
@@ -27,6 +26,7 @@ typer = {extras = ["all"], version = "^0.7.0"}
 Babel = "^2.11.0"
 lxml = "^4.9.1"
 astroid = "^2.12.13"
+tomlkit = "^0.11.6"
 
 [tool.poetry.dev-dependencies]
 ipython = "*"
@@ -38,6 +38,7 @@ mypy = "*"
 sphinx = "*"
 sphinx-autobuild = "*"
 ipdb = "^0.13.9"
+pylint = "^2.15.8"
 
 [tool.poetry.scripts]
 oc = "odoo_commands.main:app"
