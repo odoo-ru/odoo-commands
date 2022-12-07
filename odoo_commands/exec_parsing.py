@@ -5,7 +5,7 @@ import astroid
 from astroid import nodes
 from ipdb import iex
 
-from odoo_commands.odoo_mock import models
+from odoo_commands.odoo import models
 
 mock_import = 'from odoo_commands.odoo_mock import '
 
@@ -26,18 +26,22 @@ def replace_import_from(node):
             return astroid.extract_node(f'_COMMENT = "{node.as_string()}"')
 
     modname_parts = node.modname.split('.')
-    if modname_parts[0] == 'odoo' and modname_parts[1] in {'tools', 'exceptions', 'http', 'addons', 'modules', 'fields'}:
-        # return astroid.extract_node('# ' + node.as_string())
-        return astroid.extract_node('_odoo_import_turned_to = 0')
+    if modname_parts[0] == 'odoo':
+        if modname_parts[1] == 'addons' and node.names == [('decimal_precision', 'dp')]:
+            return astroid.extract_node('from odoo_commands.odoo_mock import decimal_precision as dp')
+            # return astroid.extract_node(f'_COMMENT = "{node.as_string()}"')
+        elif modname_parts[1] in {'tools', 'exceptions', 'http', 'addons', 'modules', 'fields'}:
+            return astroid.extract_node(f'_COMMENT = "{node.as_string()}"')
     elif modname_parts[0] in {'dateutil', 'werkzeug'}:
         return astroid.extract_node(f'_COMMENT = "{node.as_string()}"')
     return node
+
 
 def replace_import(node):
     new_names = []
     for name, alias in node.names:
         name_parts = name.split('.')
-        if name_parts[0] in {'werkzeug', 'odoo'}:
+        if name_parts[0] in {'werkzeug', 'odoo', 'psycopg2'}:
             pass
         else:
             new_names.append((name, alias))

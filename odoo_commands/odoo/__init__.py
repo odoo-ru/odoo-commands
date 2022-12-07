@@ -10,4 +10,5 @@ class _:
         self.kwargs = kwargs
 
 
-from odoo.addons import decimal_precision as dp
+# from odoo.addons import decimal_precision as
+

@@ -225,6 +225,7 @@ def generate(modules_path):
     for path in pathlib.Path(modules_path).iterdir():
         if is_odoo_module(path) and not path.name.startswith('test_'):
             logger.debug('Found Odoo module: %s', path)
+            # logger.warning('Found Odoo module: %s', path)
             model_defs += list(parse_odoo_module(path))
             # return parse_module(path)
             # for model_def in parse_module(path):

@@ -44,6 +44,8 @@ class Default:
 
 
 class Field:
+    # TODO Fill
+    by_type = {}
     def __init__(self, string=Default, **kwargs):
         kwargs['string'] = string
         for name, value in kwargs.items():

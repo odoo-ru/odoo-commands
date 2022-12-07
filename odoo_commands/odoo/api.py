@@ -29,3 +29,15 @@ def constrains(*args):
 
 def returns(model, downgrade=None, upgrade=None):
     return attrsetter('_returns', (model, downgrade, upgrade))
+
+def one(method):
+    method._api = 'one'
+    return method
+
+def model_cr_context(method):
+    method._api = 'model_cr_context'
+    return method
+
+def noguess(method):
+    method._api = 'noguess'
+    return method
