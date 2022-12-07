@@ -6,6 +6,7 @@ import astroid
 from astroid import nodes
 from ipdb import iex
 
+from odoo_commands.exec_parsing import parse_module_file_via_exec
 from odoo_commands.parsing import parse_python_module
 
 logger = logging.getLogger(__name__)
@@ -206,15 +207,16 @@ def parse_odoo_module(module_path):
     for path in module_path.glob('**/*.py'):
         logger.debug('Parse Odoo module file: %s', path)
         rel_path = path.relative_to(module_path)
-        if rel_path.parts[0] == 'controllers':
+        if rel_path.parts[0] in {'controllers', 'tests'}:
             continue
         if path.name.startswith('test_'):
             continue
-        if path.name == '__manifest__.py':
+        if path.name in {'__init__.py', '__manifest__.py'}:
             continue
 
-        yield from parse_python_module(path)
-
+        # yield from parse_python_module(path)
+        yield from parse_module_file_via_exec(path)
+        # return parse_module_file_via_exec(path)
 
 @iex
 def generate(modules_path):
@@ -233,5 +235,6 @@ def generate(modules_path):
 path = '/home/voronin/.local/share/virtualenvs/ruchet-SAKa37C1/lib/python3.6/site-packages/odoo/addons/'
 m = generate(path)
 
-# path = 'tests/addons/'
+# path = '/home/voronin/.local/share/virtualenvs/ruchet-SAKa37C1/lib/python3.6/site-packages/odoo/addons/l10n_be_intrastat/wizard/xml_decl.py'
 # m = generate(pathlib.Path(path))
+# m = parse_module_file_via_exec(pathlib.Path(path))
