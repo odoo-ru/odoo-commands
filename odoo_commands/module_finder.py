@@ -11,7 +11,7 @@ from importlib.abc import MetaPathFinder
 
 class TracerFinder(MetaPathFinder):
     def find_spec(self, fullname, path, target=None):
-        print(f'Looking for {fullname=} {path=}')
+        print(f'Looking for fullname={fullname} path={path}')
         return None
 
 odoo_path = '/home/voronin/.local/share/virtualenvs/ruchet-SAKa37C1/lib/python3.6/site-packages/odoo'
@@ -23,7 +23,7 @@ odoo_mock_base = '/home/voronin/projects/odoo-commands/odoo_commands'
 class MockFileFinder(FileFinder):
     # @classmethod
     def find_spec(cls, fullname, target=None):
-        print(f'Looking for {fullname=} {target=}')
+        print(f'Looking for fullname={fullname} target={target}')
         if fullname == 'odoo':
             spec = FileFinder.find_spec(fullname, target)
             print(spec)
@@ -36,7 +36,7 @@ class MockPathFinder(PathFinder):
     @classmethod
     def find_spec(cls, fullname, path, target=None):
         # fullname_parts = fullname.split('.')
-        print(f'Looking for {fullname=} {path=} {target=}')
+        print(f'Looking for fullname={fullname} path={path} target={target}')
         if fullname in {'odoo', 'dateutil', 'werkzeug'}:
             spec = PathFinder.find_spec(fullname, [odoo_mock_base], target)
             print(spec)
@@ -56,7 +56,7 @@ class MockPathFinder(PathFinder):
 
     @classmethod
     def find_spec_OFF(cls, fullname, path, target=None):
-        print(f'Looking for {fullname=} {path=}')
+        print(f'Looking for fullname={fullname} path={path}')
 
         if path is None:
             path = sys.path
@@ -77,17 +77,57 @@ class MockPathFinder(PathFinder):
             return spec
 
 
+sys.path.append(odoo_path_base)
+
+from odoo_commands.odoo_mock import models, fields
+from odoo_commands import dateutil_OFF
+from odoo_commands.odoo_mock import errorcodes
 barcode = namedtuple('Module', 'createBarcodeDrawing')
+werkzeug = namedtuple('Module', 'utils')
 pypdf2 = namedtuple('Module', ['PdfFileWriter', 'PdfFileReader'])
-with mock.patch.dict(sys.modules, {
-        'reportlab.graphics.barcode': barcode(None),
-        'PyPDF2': pypdf2(None, None),
-        }):
-    sys.meta_path.insert(0, MockPathFinder)
-    # sys.meta_path.insert(0, MockFileFinder())
-    # import datetime
-    # from odoo import models
-    from odoo.addons import sale
+
+werkzeug_utils = mock.MagicMock()
+werkzeug_utils.function.return_value = 'fish'
+
+# dateutil = namedtuple('DateutilModule', ['parser', ''])
+# dateutil_submodule = mock.MagicMock()
+# dateutil_submodule = mock.Mock(__all__=1)
+# dateutil_submodule = mock.Mock()
+# dateutil_submodule.configure_mock(**{'__all__': ()})
+# dateutil_submodule.__all__ = ()
+
+Sale = 1
+# @iex
+def test():
+    with mock.patch.dict(sys.modules, {
+            'reportlab.graphics.barcode': barcode(None),
+            'PyPDF2': pypdf2(None, None),
+            # 'werkzeug': werkzeug(None),
+            # 'dateutil': dateutil,
+            'dateutil': dateutil_OFF,
+            # 'dateutil.parser': dateutil_submodule,
+            # 'dateutil.relativedelta': dateutil_submodule,
+            # 'dateutil.rrule': dateutil_submodule,
+            # 'dateutil.tz': dateutil_submodule,
+
+            'psycopg2': mock.Mock(OperationalError=None, __version__='2.8', errorcodes=errorcodes),
+            'psycopg2.errorcodes': errorcodes,
+            'psycopg2.extras': mock.Mock(),
+            'psycopg2.extensions': mock.Mock(),
+            'psycopg2.pool': mock.Mock(),
+            'PIL': mock.Mock(Image=mock.Mock(**{'preinit.returns': None})),
+
+            'odoo.models': models,
+            'odoo.fields': fields,
+            }):
+        # sys.meta_path.insert(0, MockPathFinder)
+        # sys.meta_path.insert(0, MockFileFinder())
+        # import datetime
+        # from odoo import models
+        from odoo.addons import sale
+        global Sale
+        Sale = sale
+test()
 
 # class MyLoader(SourceLoader):
 #     def __init__(self, fullname, path):

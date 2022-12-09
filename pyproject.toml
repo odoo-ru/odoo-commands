@@ -16,30 +16,28 @@ classifiers = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.8"
-ipython = "*"
+python = "^3.6"
 click_odoo = "^1.5.0"
 click-odoo-contrib = "^1.15.0"
 networkx = "<2.7"
 manifestoo-core = "^0.10.2"
 typer = {extras = ["all"], version = "^0.7.0"}
 Babel = "^2.11.0"
-lxml = "^4.9.1"
-astroid = "^2.12.13"
-tomlkit = "^0.11.6"
-mock = "^4.0.3"
 
 [tool.poetry.dev-dependencies]
 ipython = "*"
 pytest = "*"
-pytest-cov = "*"
-pytest-flake8 = "*"
 pytest-pythonpath = "*"
-mypy = "*"
-sphinx = "*"
-sphinx-autobuild = "*"
-ipdb = "^0.13.9"
-pylint = "^2.15.8"
+setuptools = "<58"
+odoo = {path = "odoo-11.0.post20201201"}
+# Odoo needs old versions
+Werkzeug = "<1"
+Jinja2 = "~=2.10.1"
+PyYAML = "~=3.0"
+psycopg2 = "~=2.8.3"
+vatnumber = "<2"
+python-stdnum = "1.8"
+netifaces = "^0.11.0"
 
 [tool.poetry.scripts]
 oc = "odoo_commands.main:app"
@@ -58,10 +56,6 @@ source = "ocli/"
 
 [tool.mypy]
 check_untyped_defs = true
-
-[tool.tox.tox]
-envlist = "py36, docs"
-skipsdist = true
 
 [tool.odoo]
 project-module-dirs = ['addons']

@@ -3,9 +3,8 @@ import pathlib
 import pylint
 import astroid
 from astroid import nodes
-from ipdb import iex
 
-from odoo_commands.odoo import models
+from odoo_commands.odoo_mock import models
 
 mock_import = 'from odoo_commands.odoo_mock import '
 
