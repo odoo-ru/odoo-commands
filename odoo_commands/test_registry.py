@@ -1,7 +1,11 @@
+import logging
+
 import mock
 import odoo
+from IPython import start_ipython
 from odoo.modules.registry import Registry
 from odoo.sql_db import Cursor, ConnectionPool
+from odoo.tools import config
 
 
 class MockRegistry(Registry):
@@ -34,25 +38,26 @@ class ConnectionPoolMock:
 class ConnectionMock:
     pass
 
+_logger = logging.getLogger(__name__)
 
 # class CursorMock(Cursor):
 class CursorMock:
-    # def __init__OFF(self, pool, dbname, dsn, serialized=True):
+#     def __init__OFF(self, pool, dbname, dsn, serialized=True):
     def __init__(self, pool, dbname, dsn, serialized=True):
         self.dbname = dbname
         return
-        # self.sql_from_log = {}
-        # self.sql_into_log = {}
+        self.sql_from_log = {}
+        self.sql_into_log = {}
 
         # default log level determined at cursor creation, could be
         # overridden later for debugging purposes
-        # self.sql_log = _logger.isEnabledFor(logging.DEBUG)
+        self.sql_log = _logger.isEnabledFor(logging.DEBUG)
 
-        # self.sql_log_count = 0
+        self.sql_log_count = 0
 
         # avoid the call of close() (by __del__) if an exception
         # is raised by any of the following initialisations
-        # self._closed = True
+        self._closed = True
 
         self.__pool = pool
         self.dbname = dbname
@@ -60,14 +65,19 @@ class CursorMock:
         # see also the docstring of Cursor.
         self._serialized = serialized
 
+        # OFFFFFFFFFFFFFFFFF
         self._cnx = pool.borrow(dsn)
         self._obj = self._cnx.cursor()
-        if self.sql_log:
+        # self._cnx = None
+        # self._obj = None
+
+        if False:
+        # if self.sql_log:
             self.__caller = frame_codeinfo(currentframe(), 2)
         else:
             self.__caller = False
         self._closed = False  # real initialisation value
-        self.autocommit(False)
+        # self.autocommit(False)
         self.__closer = False
 
         self._default_log_exceptions = True
@@ -126,18 +136,46 @@ class CursorMock:
     def close(self):
         pass
 
+    def close_OFF(self):
+        return self._close(False)
 
-def db_connect(to, allow_uri=False):
-    return ConnectionMock(PoolMock(), to, {})
+    def _close_OFF(self, leak=False):
+        global sql_counter
 
-    global _Pool
-    if _Pool is None:
-        _Pool = ConnectionPool(int(tools.config['db_maxconn']))
+        if not self._obj:
+            return
 
-    db, info = connection_info_for(to)
-    if not allow_uri and db != to:
-        raise ValueError('URI connections not allowed')
-    return Connection(_Pool, db, info)
+        del self.cache
+
+        if self.sql_log:
+            self.__closer = frame_codeinfo(currentframe(), 3)
+
+        # simple query count is always computed
+        sql_counter += self.sql_log_count
+
+        # advanced stats only if sql_log is enabled
+        self.print_log()
+
+        self._obj.close()
+
+        # This force the cursor to be freed, and thus, available again. It is
+        # important because otherwise we can overload the server very easily
+        # because of a cursor shortage (because cursors are not garbage
+        # collected as fast as they should). The problem is probably due in
+        # part because browse records keep a reference to the cursor.
+        del self._obj
+        self._closed = True
+
+        # Clean the underlying connection.
+        self._cnx.rollback()
+
+        if leak:
+            self._cnx.leaked = True
+        else:
+            chosen_template = tools.config['db_template']
+            templates_list = tuple(set(['template0', 'template1', 'postgres', chosen_template]))
+            keep_in_pool = self.dbname not in templates_list
+            self.__pool.give_back(self._cnx, keep_in_pool=keep_in_pool)
 
 
 def is_initialized(cr):
@@ -151,24 +189,28 @@ import odoo.modules
 odoo.modules.reset_modules_state = lambda dbname: None
 
 
-def get_env():
+def start_env():
+    config.parse_config([])
+    # config.parse_config(['-d', 'prod2'])
+    # config.parse_config(['--workers', '1'])
+    odoo.cli.server.report_configuration()
+    odoo.service.server.start(preload=[], stop=True)
+
     # with mock.patch('odoo.sql_db.db_connect', db_connect):
     with mock.patch('odoo.sql_db.Cursor', CursorMock), \
-        mock.patch('odoo.sql_db.ConnectionPool', ConnectionPoolMock), \
         mock.patch('odoo.modules.db.is_initialized', is_initialized), \
-        mock.patch('odoo.modules.registry.Registry', MockRegistry), \
         mock.patch('odoo.modules.loading.reset_modules_state', reset_modules_state):
 
         # registry = odoo.registry('none')
-        registry = Registry('none')
-        cr = registry.cursor()
+        # registry = Registry('none')
+        # cr = registry.cursor()
         # env = odoo.api.Environment(cr, odoo.SUPERUSER_ID, {})
         # registry = MockRegistry('none')
 
         with odoo.api.Environment.manage(), odoo.registry('none').cursor() as cr:
             env = odoo.api.Environment(cr, odoo.SUPERUSER_ID, {})
-            env.reset()
-            yield env
+            start_ipython(argv=[], user_ns={'env': env})
+            # yield env
 
         # with registry.cursor() as cr:
         #     env = odoo.api.Environment(cr, 1, {})
@@ -177,4 +219,4 @@ def get_env():
             # registry = odoo.registry('none')
             # registry = MockRegistry('none')
 
-env = next(get_env())
+start_env()
