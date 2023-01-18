@@ -1,13 +1,15 @@
 import fnmatch
 import os
 import pathlib
+from collections import defaultdict
+from pprint import pprint
 
 # from odoo.tools import PoFile
 from babel.messages import extract
 
 # from odoo_commands.config import read_config, odoo_project_config
 # from .createdb import OdooProject
-from odoo_commands.createdb import OdooProject
+from odoo_commands.project import OdooProject, Module
 from odoo_commands.odoo_translate import PoFile
 
 
@@ -70,10 +72,16 @@ def extract_terms_1(module_path):
         if fnmatch.fnmatch(root, '*/static/src/xml*'):
             babel_extract_terms(file_name, path, root, 'odoo.tools.translate:babel_extract_qweb', trans_type='code', extra_comments=[WEB_TRANSLATION_COMMENT], extract_keywords={'_': None})
 
-def extract_2(module_name, module_path):
-    result = []
-    module_path = pathlib.Path(module_path)
-    for extract_method, path_template in {
+
+def extract_2(module: Module):
+    # result = []
+    result = defaultdict(lambda: {
+        'modules': set(),
+        'tnrs': [],
+        'comments': set(),
+    })
+
+    for method, path_template in {
         ('python', '**/*.py'),
         # ('mako', '**/*.mako'),
         # TODO Skip static/js/lib dir
@@ -81,35 +89,28 @@ def extract_2(module_name, module_path):
         # ('odoo.tools.translate:babel_extract_qweb', 'static/src/xml/**/*.xml'),
         ('odoo_commands.odoo_translate:babel_extract_qweb', 'static/src/xml/**/*.xml'),
     }:
-        trans_type = 'report' if extract_method == 'mako' else 'code'
-        extract_keywords = {'_t': None, '_lt': None} if extract_method == 'javascript' else {'_': None}
-        extra_comments = (
-            ['openerp-web']
-            if extract_method in {'javascript', 'odoo.tools.translate:babel_extract_qweb'}
-            else []
-        )
+        # trans_type = 'report' if method == 'mako' else 'code'
+        keywords = {'_t': None, '_lt': None} if method == 'javascript' else {'_': None}
+        # extra_comments = (
+        #     ['openerp-web']
+        #     if method in {'javascript', 'odoo.tools.translate:babel_extract_qweb'}
+        #     else []
+        # )
 
-        for file_path in module_path.glob(path_template):
+        for file_path in module.path.glob(path_template):
             display_path = 'addons/' + str(file_path)
             with open(file_path, 'rb') as src_file:
-                for extracted in extract.extract(extract_method, src_file, keywords=extract_keywords):
-                    lineno, message, comments = extracted[:3]
-                    # result.append((module_name,  message, display_path, lineno, trans_type, tuple(comments + extra_comments)))
-                    result.append((module_name, trans_type, display_path, lineno, message, '', tuple(comments + extra_comments)))
+                for lineno, message, comments, _ in extract.extract(method, src_file, keywords=keywords):
+                    if method in {'javascript', 'odoo.tools.translate:babel_extract_qweb'}:
+                        comments += ['openerp-web']
+                    # result.append((module_name, trans_type, display_path, lineno, message, '', tuple(comments + extra_comments)))
+                    message_data = result[message]
+                    message_data['modules'].add(module.name)
+                    message_data['tnrs'].append(('code', display_path, lineno))
+                    message_data['comments'].update(comments)
+
     return result
 
-
-# def push_translation(module, type, name, id, source, comments=None):
-#     # empty and one-letter terms are ignored, they probably are not meant to be
-#     # translated, and would be very hard to translate anyway.
-#     sanitized_term = (source or '').strip()
-#     # remove non-alphanumeric chars
-#     sanitized_term = re.sub(r'\W+', '', sanitized_term)
-#     if not sanitized_term or len(sanitized_term) <= 1:
-#         return
-#
-#     tnx = (module, source, name, id, type, tuple(comments or ()))
-#     to_translate.add(tnx)
 
 
 def babel_extract_terms(fname, path, root, extract_method="python", trans_type='code',
@@ -133,30 +134,7 @@ def babel_extract_terms(fname, path, root, extract_method="python", trans_type='
     finally:
         src_file.close()
 
-    # # return terms
-    #
-    # # we now group the translations by source. That means one translation per source.
-    # grouped_rows = {}
-    # for module, type, name, res_id, src, comments in sorted(terms):
-    #     row = grouped_rows.setdefault(src, {})
-    #     row.setdefault('modules', set()).add(module)
-    #     # if not row.get('translation') and trad != src:
-    #     #     row['translation'] = trad
-    #     row.setdefault('tnrs', []).append((type, name, res_id))
-    #     row.setdefault('comments', set()).update(comments)
-    #
-    # pot_file_path = os.path.join(module_path, f'i18n/{module_name}.pot')
-    # with open(pot_file_path, 'wb') as buffer:
-    #     writer = PoFile(buffer)
-    #     writer.write_infos(modules)
-    #
-    #     for src, row in sorted(grouped_rows.items()):
-    #         if not lang:
-    #             # translation template, so no translation value
-    #             row['translation'] = ''
-    #         elif not row.get('translation'):
-    #             row['translation'] = src
-    #         writer.write(row['modules'], row['tnrs'], src, row['translation'], row['comments'])
+
 
 def write_pot(modules, rows, pot_path, lang):
     buffer = open(pot_path, 'wb')
@@ -164,29 +142,30 @@ def write_pot(modules, rows, pot_path, lang):
     writer.write_infos(modules)
 
     # we now group the translations by source. That means one translation per source.
-    grouped_rows = {}
-    for module, type, name, res_id, src, trad, comments in rows:
-        row = grouped_rows.setdefault(src, {})
-        row.setdefault('modules', set()).add(module)
-        if not row.get('translation') and trad != src:
-            row['translation'] = trad
-        row.setdefault('tnrs', []).append((type, name, res_id))
-        row.setdefault('comments', set()).update(comments)
+    # grouped_rows = {}
+    # for module, type, name, res_id, src, trad, comments in rows:
+    #     row = grouped_rows.setdefault(src, {})
+    #
+    #     row.setdefault('modules', set()).add(module)
+    #     if not row.get('translation') and trad != src:
+    #         row['translation'] = trad
+    #     row.setdefault('tnrs', []).append((type, name, res_id))
+    #     row.setdefault('comments', set()).update(comments)
 
-    for src, row in sorted(grouped_rows.items()):
-        if not lang:
+    for src, row in sorted(rows.items()):
+        # if not lang:
             # translation template, so no translation value
-            row['translation'] = ''
-        elif not row.get('translation'):
-            row['translation'] = src
-        writer.write(row['modules'], row['tnrs'], src, row['translation'], row['comments'])
+            # row['translation'] = ''
+        # elif not row.get('translation'):
+        #     row['translation'] = src
+        writer.write(row['modules'], row['tnrs'], src, '', row['comments'])
 
 
 def generate_pot(module_paths, module_name):
     project = OdooProject(module_paths)
-    module_path = project.module_path(module_name)
-    res = extract_2(module_name, module_path)
-    print(res)
+    res = extract_2(project.module(module_name))
+    for r in res:
+        print(r, res[r])
     write_pot([module_name], res, 'test.pot', False)
 
 

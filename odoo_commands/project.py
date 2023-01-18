@@ -1,24 +1,24 @@
 import ast
 import os
+import pathlib
 from functools import lru_cache
 from typing import List, Set
-
-import networkx
-import networkx as nx
 
 
 class Module:
     # __slots__ = ('path', 'name')
     # sequence = 100
 
-    def __init__(self, path, name):
+    def __init__(self, name, path):
         # self.project = project
-        self.path = path
         self.name = name
+        self.path = pathlib.Path(path)
         # self.attrs = {}
-        self.read_manifest()
+        # self.read_manifest()
 
-    def read_manifest(self):
+    @property
+    @lru_cache(maxsize=None)
+    def manifest(self):
     # @property
     # @lru_cache(1024)
     # def manifest(self):
@@ -27,7 +27,7 @@ class Module:
         # if not os.path.isfile(manifest_path):
         #     raise FileNotFoundError("No Odoo manifest found in %s" % addon_dir)
         with open(manifest_path) as manifest_file:
-            attrs = ast.literal_eval(manifest_file.read())
+            return ast.literal_eval(manifest_file.read())
         # attrs.setdefault('sequence', 100)
         # if not attrs.get('depends'):
         #     attrs['depends'] = ['base']
@@ -71,13 +71,13 @@ class OdooProject:
         # self.cache = {}
 
     @lru_cache(maxsize=1024)
-    def module_path(self, module_name):
+    def module(self, module_name):
         for modules_path in self.modules_paths:
             module_path = os.path.join(modules_path, module_name)
             if os.path.isdir(module_path) and os.path.isfile(os.path.join(module_path, '__manifest__.py')):
-                return module_path
+                return Module(module_name, module_path)
 
-        raise ValueError(f'No module found: {module_name}')
+        raise LookupError(f'No module found: {module_name}')
 
     def field(self, module_name, model_name, field_name):
         module = self.module(module_name)
@@ -119,10 +119,9 @@ class OdooProject:
 
         return recursive_module_graph(self.module(module_name))
 
-    @lru_cache(maxsize=1024)
-    def module(self, module_name):
-        return Module(self.module_path(module_name), module_name)
-
+    # @lru_cache(maxsize=1024)
+    # def module(self, module_name):
+    #     return Module(self.module_path(module_name), module_name)
 
     def attr(self, model_name, attr_name, module=None):
         deps = self.module_dependencies(module_name)
