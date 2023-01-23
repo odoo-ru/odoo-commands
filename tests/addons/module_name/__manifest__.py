@@ -9,7 +9,7 @@
     'icon': '/base_ext/static/description/icon.png',
 
     'depends': [
-        'base',
+        'sale',
     ],
 
     'data': [
@@ -17,6 +17,6 @@
         'security/base_access.xml',
         'security/base_rules.xml',
 
-        'views/base.xml',
+        'views/sale_order.xml',
     ],
 }

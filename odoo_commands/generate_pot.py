@@ -1,3 +1,4 @@
+import csv
 import fnmatch
 import os
 import pathlib
@@ -6,6 +7,8 @@ from pprint import pprint
 
 # from odoo.tools import PoFile
 from babel.messages import extract
+from lxml import etree
+from odoo.tools import xml_translate, html_translate
 
 # from odoo_commands.config import read_config, odoo_project_config
 # from .createdb import OdooProject
@@ -13,126 +16,191 @@ from odoo_commands.project import OdooProject, Module
 from odoo_commands.odoo_translate import PoFile
 
 
-def babel_extract_terms_v11(fname, path, root, extract_method="python", trans_type='code',
-                        extra_comments=None, extract_keywords={'_': None}):
-    module, fabsolutepath, _, display_path = verified_module_filepaths(fname, path, root)
-    extra_comments = extra_comments or []
-    if not module: return
-    src_file = open(fabsolutepath, 'rb')
-    options = {}
-    if extract_method == 'python':
-        options['encoding'] = 'UTF-8'
-    try:
-        for extracted in extract.extract(extract_method, src_file, keywords=extract_keywords, options=options):
-            # Babel 0.9.6 yields lineno, message, comments
-            # Babel 1.3 yields lineno, message, comments, context
-            lineno, message, comments = extracted[:3]
-            push_translation(module, trans_type, display_path, lineno, encode(message), comments + extra_comments)
-    except Exception:
-        _logger.exception("Failed to extract terms from %s", fabsolutepath)
-    finally:
-        src_file.close()
+# d = {
+#     'menu': ('ir.ui.menu', ('name',)),
+#     'act_window': ('ir.actions.act_window', ('name', 'help')),
+#     'report': ('ir.actions.report', ('name', 'help')),
+# }
 
-# def extract_t(path, extract_method='python', trans_type='code', extra_keywords={'_': None}, options=options, extra_comments=None):
-#
-#     if extract_method == 'python':
-#         options['encoding'] = 'UTF-8'
-#
-#     src_file = open(file_abs_path, 'rb')
-#     result = []
-#     for lineno, message, comments, context in extract.extract(extract_method, src_file, keywords=extract_keywords, options=options):
-#         # empty and one-letter terms are ignored, they probably are not meant to be
-#         # translated, and would be very hard to translate anyway.
-#         source = encode(message)
-#         sanitized_term = (source or '').strip()
-#         # remove non-alphanumeric chars
-#         sanitized_term = re.sub(r'\W+', '', sanitized_term)
-#         if not sanitized_term or len(sanitized_term) <= 1:
-#             continue
-#         result.append((module, trans_type, display_path, lineno, source, comments + extra_comments))
-#
-#     return result
+class DataFileExtractor:
+    tag_to_model = {
+        'menuitem': 'ir.ui.menu',
+        'act_window': 'ir.actions.act_window',
+        'report': 'ir.actions.report',
+    }
+
+    translate_fields = {
+        'ir.ui.view': {
+            'name': False,
+            'model': False,
+            'key': False,
+            'arch': xml_translate,
+            'field_parent': False,
+            'xml_id': False,
+        },
+        'ir.ui.menu': {
+            'name': True,
+            'web_icon': False,
+        },
+        'ir.actions.act_window': {
+            'name': True,
+            'type': False,
+            'domain': False,
+            'context': False,
+            'res_model': False,
+            'src_model': False,
+            'view_mode': False,
+            'usage': False,
+            'search_view': False,
+            'xml_id': False,
+            'help': html_translate,
+        },
+        'ir.actions.report': {
+            'name': True,
+            'type': False,
+            'model': False,
+            'report_name': False,
+            'report_file': False,
+            'print_report_name': False,
+            'attachment': False,
+            'module': False,
+            'lo_bin_path': False,
+            'xml_id': False,
+            'help': html_translate,
+            # Added
+            'py3o_template_fallback': False,
+            'msg_py3o_report_not_available': False,
+        },
+        'ir.module.category': {
+            'name': True,
+            'description': True,
+            'xml_id': False,
+        },
+        'res.groups': {
+            'name': True,
+            'comment': True,
+        },
+        'ir.model.access': {
+            'name': False,
+        },
+        'ir.rule': {
+            'name': False,
+            'domain_force': False,
+        },
+    }
+
+    def __init__(self, field_translates: dict):
+        self.field_translates = field_translates
+
+    def extract_terms(self, module):
+        self.res = self.extract_from_source_code(module)
+
+    def extract_from_data_files(self, module):
+        for data_file_path in module.data_file_paths():
+            data_file_extension = data_file_path.suffix
+            if data_file_extension == '.xml':
+                self.extract_from_xml_data_file(data_file_path)
+            elif data_file_extension == '.csv':
+                self.extract_from_csv_data_file(data_file_path)
+
+    def extract_from_xml_data_file(self, data_file_path):
+        doc = etree.parse(data_file_path)
+        root = doc.getroot()
+        # return root
+
+        def field_value(field_tag):
+            if field_tag.get('type') == 'xml':
+                return ''.join(etree.tostring(child, encoding='unicode') for child in field_tag)
+            elif field_tag.text:
+                return field_tag.text
+
+        for record in root.iterfind('.//record'):
+            model = record.get('model')
+            for field in record.iterfind('./field'):
+                field_name = field.get('name')
+                value = field_value(field)
+                if not value:
+                    continue
+                translate = self.translate(model, field_name)
+                # TODO callable translate
+                yield model, field.get('name'), value
+
+            # if model in self.translate_fields:
+            #     for field_name in self.translate_fields[model]:
+            #         field_tag = record.find(f'./field[@name="{field_name}"]')
+            #         if field_tag:
+            #             value = field_value(field_tag)
+            #             if value:
+            #                 yield model, field_tag.get('name'), value
+            # else:
+            #     for field_tag in record.iterfind(f'./field'):
+            #         value = field_value(field_tag)
+            #         if value and translate:
+            #             yield model, field_tag.get('name'), value
+
+        for menuitem in root.iterfind('.//menuitem'):
+            yield 'ir.ui.menu', 'name', menuitem.get('name')
+
+        # TODO template tag
+        # https://www.odoo.com/documentation/16.0/developer/reference/backend/data.html#template
+
+    def extract_from_csv_data_file(self, file_path):
+        model = file_path.stem
+        with open(file_path) as csv_file:
+            csv_reader = csv.reader(csv_file, quotechar='"', delimiter=',')
+            headers = next(csv_reader)
+            assert 'id' in headers
+
+            translate_fields = set()
+            for field_name in headers:
+                if field_name.endswith(':id'):
+                    continue
+                translate = self.translate(model, field_name)
+                if translate:
+                    translate_fields.add(field_name)
 
 
-def extract_terms_1(module_path):
-    terms = []
-    module_path = pathlib.Path(module_path)
+    # push_translation(module, 'model', model + "," + field_name, 'xml_name', term)
 
-    terms.extend(extract_t())
-    for root, _, file_names in module_path.glob('**/*.py'):
-        for file_name in fnmatch.filter(file_names, '*.py'):
-            babel_extract_terms(file_name, path, root, 'python', trans_type='code', extra_comments=[], extract_keywords={'_': None})
-        # mako provides a babel extractor: http://docs.makotemplates.org/en/latest/usage.html#babel
-        for file_name in fnmatch.filter(file_names, '*.mako'):
-            babel_extract_terms(file_name, path, root, 'mako', trans_type='report', extra_comments=[], extract_keywords={'_': None})
-        # Javascript source files in the static/src/js directory, rest is ignored (libs)
-        if fnmatch.fnmatch(root, '*/static/src/js*'):
-            babel_extract_terms(file_name, path, root, 'javascript', trans_type='code', extra_comments=[WEB_TRANSLATION_COMMENT], extract_keywords={'_t': None, '_lt': None})
-        # QWeb template files
-        if fnmatch.fnmatch(root, '*/static/src/xml*'):
-            babel_extract_terms(file_name, path, root, 'odoo.tools.translate:babel_extract_qweb', trans_type='code', extra_comments=[WEB_TRANSLATION_COMMENT], extract_keywords={'_': None})
+    def extract_from_source_code(self, module: Module):
+        # result = []
+        result = defaultdict(lambda: {
+            'modules': set(),
+            'tnrs': [],
+            'comments': set(),
+        })
 
+        for method, path_template in {
+            ('python', '**/*.py'),
+            # ('mako', '**/*.mako'),
+            # TODO Skip static/js/lib dir
+            ('javascript', 'static/src/js/**/*.js'),
+            # ('odoo.tools.translate:babel_extract_qweb', 'static/src/xml/**/*.xml'),
+            ('odoo_commands.odoo_translate:babel_extract_qweb', 'static/src/xml/**/*.xml'),
+        }:
+            # trans_type = 'report' if method == 'mako' else 'code'
+            keywords = {'_t': None, '_lt': None} if method == 'javascript' else {'_': None}
+            # extra_comments = (
+            #     ['openerp-web']
+            #     if method in {'javascript', 'odoo.tools.translate:babel_extract_qweb'}
+            #     else []
+            # )
 
-def extract_2(module: Module):
-    # result = []
-    result = defaultdict(lambda: {
-        'modules': set(),
-        'tnrs': [],
-        'comments': set(),
-    })
+            for file_path in module.path.glob(path_template):
+                display_path = 'addons/' + str(file_path)
+                with open(file_path, 'rb') as src_file:
+                    for lineno, message, comments, _ in extract.extract(method, src_file, keywords=keywords):
+                        if method in {'javascript', 'odoo.tools.translate:babel_extract_qweb'}:
+                            comments += ['openerp-web']
+                        # result.append((module_name, trans_type, display_path, lineno, message, '', tuple(comments + extra_comments)))
+                        message_data = result[message]
+                        message_data['modules'].add(module.name)
+                        message_data['tnrs'].append(('code', display_path, lineno))
+                        message_data['comments'].update(comments)
 
-    for method, path_template in {
-        ('python', '**/*.py'),
-        # ('mako', '**/*.mako'),
-        # TODO Skip static/js/lib dir
-        ('javascript', 'static/src/js/**/*.js'),
-        # ('odoo.tools.translate:babel_extract_qweb', 'static/src/xml/**/*.xml'),
-        ('odoo_commands.odoo_translate:babel_extract_qweb', 'static/src/xml/**/*.xml'),
-    }:
-        # trans_type = 'report' if method == 'mako' else 'code'
-        keywords = {'_t': None, '_lt': None} if method == 'javascript' else {'_': None}
-        # extra_comments = (
-        #     ['openerp-web']
-        #     if method in {'javascript', 'odoo.tools.translate:babel_extract_qweb'}
-        #     else []
-        # )
-
-        for file_path in module.path.glob(path_template):
-            display_path = 'addons/' + str(file_path)
-            with open(file_path, 'rb') as src_file:
-                for lineno, message, comments, _ in extract.extract(method, src_file, keywords=keywords):
-                    if method in {'javascript', 'odoo.tools.translate:babel_extract_qweb'}:
-                        comments += ['openerp-web']
-                    # result.append((module_name, trans_type, display_path, lineno, message, '', tuple(comments + extra_comments)))
-                    message_data = result[message]
-                    message_data['modules'].add(module.name)
-                    message_data['tnrs'].append(('code', display_path, lineno))
-                    message_data['comments'].update(comments)
-
-    return result
+        return result
 
 
-
-def babel_extract_terms(fname, path, root, extract_method="python", trans_type='code',
-                            extra_comments=None, extract_keywords={'_': None}):
-    module, fabsolutepath, _, display_path = verified_module_filepaths(fname, path, root)
-    extra_comments = extra_comments or []
-    if not module:
-        return
-    src_file = open(fabsolutepath, 'rb')
-    options = {}
-    if extract_method == 'python':
-        options['encoding'] = 'UTF-8'
-    try:
-        for extracted in extract.extract(extract_method, src_file, keywords=extract_keywords, options=options):
-            # Babel 0.9.6 yields lineno, message, comments
-            # Babel 1.3 yields lineno, message, comments, context
-            lineno, message, comments = extracted[:3]
-            push_translation(module, trans_type, display_path, lineno, encode(message), comments + extra_comments)
-    except Exception:
-        _logger.exception("Failed to extract terms from %s", fabsolutepath)
-    finally:
-        src_file.close()
 
 
 
@@ -161,9 +229,19 @@ def write_pot(modules, rows, pot_path, lang):
         writer.write(row['modules'], row['tnrs'], src, '', row['comments'])
 
 
+def parse_xml_file():
+    doc = etree.parse(xmlfile)
+    obj = xml_import(cr, module, idref, mode, report=report, noupdate=noupdate, xml_filename=xml_filename)
+    obj.parse(doc.getroot(), mode=mode)
+
+
 def generate_pot(module_paths, module_name):
     project = OdooProject(module_paths)
-    res = extract_2(project.module(module_name))
+    module = project.module(module_name)
+
+    res = extract_from_source_code(module)
+    res.update(extract_from_data_files(module))
+
     for r in res:
         print(r, res[r])
     write_pot([module_name], res, 'test.pot', False)

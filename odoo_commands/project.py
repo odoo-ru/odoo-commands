@@ -9,12 +9,10 @@ class Module:
     # __slots__ = ('path', 'name')
     # sequence = 100
 
-    def __init__(self, name, path):
-        # self.project = project
+    def __init__(self, project, name, path):
+        self.project = project
         self.name = name
         self.path = pathlib.Path(path)
-        # self.attrs = {}
-        # self.read_manifest()
 
     @property
     @lru_cache(maxsize=None)
@@ -39,21 +37,30 @@ class Module:
             depends = attrs.get('depends')
             self.depends = depends if depends else ['base']
 
-    # @lru_cache(1024)
-    # def expanded_dependencies(self):
-    #     if self.dependencies:
-    #         return
-    #     for module_name in self.depends:
-    #         module = self.project.module(module_name)
-    #         module.expanded_dependencies()
-    #     self.expanded_dependencies
+    def data_file_path(self):
+        yield from self.manifest.get('data', [])
+
+    @property
+    @lru_cache(maxsize=None)
+    def expanded_dependencies(self):
+        if self.name == 'base':
+            return {}
+
+        depends = self.manifest.get('depends')
+        if not depends:
+            depends = ['base']
+
+        res = {}
+        for depend in depends:
+            module = self.project.module(depend)
+            res[depend] = module
+            res.update(module.expanded_dependencies)
+
+        return res
 
     # def topological_depends(self):
     #     graph = nx.DiGraph()
     #     return list(nx.lexicographical_topological_sort(graph, key=lambda module: module.sequence))
-
-    def parse_models(self):
-        pass
 
 
 class Model:
@@ -66,16 +73,24 @@ class Field:
 
 
 class OdooProject:
-    def __init__(self, modules_paths):
-        self.modules_paths = modules_paths
+    def __init__(self, project_module_paths):
+        self.project_modules_paths = project_module_paths
         # self.cache = {}
+        self.core_module_path = None
+
+    @property
+    @lru_cache()
+    def modules_paths(self):
+        import odoo
+        core_modules_path = pathlib.Path(odoo.tools.config['root_path'], 'addons')
+        return list(map(pathlib.Path, self.project_modules_paths)) + [core_modules_path]
 
     @lru_cache(maxsize=1024)
     def module(self, module_name):
         for modules_path in self.modules_paths:
             module_path = os.path.join(modules_path, module_name)
             if os.path.isdir(module_path) and os.path.isfile(os.path.join(module_path, '__manifest__.py')):
-                return Module(module_name, module_path)
+                return Module(self, module_name, module_path)
 
         raise LookupError(f'No module found: {module_name}')
 

@@ -1,11 +1,17 @@
-import logging
+import time
+s1 = time.time()
 
+import logging
 import mock
+# from IPython import start_ipython
+
 import odoo
-from IPython import start_ipython
 from odoo.modules.registry import Registry
-from odoo.sql_db import Cursor, ConnectionPool
+# from odoo.sql_db import Cursor, ConnectionPool
 from odoo.tools import config
+
+s2 = time.time()
+print('01 >>', format(s2 - s1, '.2f'))
 
 
 class MockRegistry(Registry):
@@ -97,12 +103,41 @@ class CursorMock:
             return ([])
         elif self.query == "SELECT name from ir_module_module WHERE state IN %s":
             if self.params == (('installed', 'to upgrade', 'to remove'),):
-                return [('base',)]
+                # return [('base',)]
+                return [(m,) for m in {
+                    'base',
+                    'account',
+                    'analytic',
+                    'product',
+                    'portal',
+                    'base_setup',
+                    'mail',
+                    'http_routing',
+                    'decimal_precision',
+                    'web',
+                    'bus',
+                    'web_tour',
+                    'sales_team',
+                    'web_planner',
+                }]
 
         raise ValueError(f'Unknown query: {self.query}: {self.params}')
 
     def dictfetchall(self):
         if self.query == "SELECT name, id, state, demo AS dbdemo, latest_version AS installed_version  FROM ir_module_module WHERE name IN %s":
+            result = []
+            id_counter = 10
+            for module in self.params:
+                result.append({
+                    'dbdemo': False,
+                    'id': 1 if module == 'base' else id_counter,
+                    'installed_version': '11.0.1.3',
+                    'name': module,
+                    'state': 'installed',
+                })
+                id_counter += 1
+            return result
+
             if self.params == (('base',),):
                 return [
                     {
@@ -190,16 +225,22 @@ odoo.modules.reset_modules_state = lambda dbname: None
 
 
 def start_env():
+    t01 = time.time()
     config.parse_config([])
     # config.parse_config(['-d', 'prod2'])
     # config.parse_config(['--workers', '1'])
     odoo.cli.server.report_configuration()
     odoo.service.server.start(preload=[], stop=True)
 
+    t02 = time.time()
+    print('1 >>>', format(t02 - t01, '.2f'))
+
     # with mock.patch('odoo.sql_db.db_connect', db_connect):
     with mock.patch('odoo.sql_db.Cursor', CursorMock), \
         mock.patch('odoo.modules.db.is_initialized', is_initialized), \
         mock.patch('odoo.modules.loading.reset_modules_state', reset_modules_state):
+        t03 = time.time()
+        print('2 >>>', format(t03 - t02, '.2f'))
 
         # registry = odoo.registry('none')
         # registry = Registry('none')
@@ -209,7 +250,10 @@ def start_env():
 
         with odoo.api.Environment.manage(), odoo.registry('none').cursor() as cr:
             env = odoo.api.Environment(cr, odoo.SUPERUSER_ID, {})
-            start_ipython(argv=[], user_ns={'env': env})
+            t04 = time.time()
+            print('3 >>>', format(t04 - t03, '.2f'))
+            print('>>>>>', format(t04 - s1, '.2f'))
+            # start_ipython(argv=[], user_ns={'env': env})
             # yield env
 
         # with registry.cursor() as cr:
@@ -218,5 +262,8 @@ def start_env():
         # with odoo.api.Environment.manage():
             # registry = odoo.registry('none')
             # registry = MockRegistry('none')
+
+s10 = time.time()
+print('02 >>', format(s10 - s2, '.2f'))
 
 start_env()
