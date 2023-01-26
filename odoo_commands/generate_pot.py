@@ -5,6 +5,7 @@ import pathlib
 from collections import defaultdict
 from pprint import pprint
 
+import odoo.api
 # from odoo.tools import PoFile
 from babel.messages import extract
 from lxml import etree
@@ -92,7 +93,11 @@ class DataFileExtractor:
     def __init__(self, field_translates: dict):
         self.field_translates = field_translates
 
+
     def extract_terms(self, module):
+        with odoo.api.Environment.manage():
+            registry = odoo.registry(f'module:{module.name}')
+
         self.res = self.extract_from_source_code(module)
 
     def extract_from_data_files(self, module):
