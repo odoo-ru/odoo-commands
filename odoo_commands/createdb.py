@@ -4,53 +4,69 @@ import hashlib
 import os
 import datetime
 from functools import lru_cache
+from pprint import pprint
 from typing import Set
 import time
 
-from click_odoo_contrib.initdb import _walk
+# import odoo
+
+# from click_odoo_contrib.initdb import _walk
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-def test_time():
-    # now = time.time()
-    # SECONDS_IN_HOUR = 60 * 60
-    # SECONDS_IN_DAY = SECONDS_IN_HOUR * 24
-    # SECONDS_IN_WEEK = SECONDS_IN_DAY * 7
-    # SECONDS_IN_4_WEEKS = SECONDS_IN_WEEK * 4
-    # SECONDS_IN_YEAR = SECONDS_IN_4_WEEKS
-    #
-    # hour_time = now - now % SECONDS_IN_HOUR
-    # day_time = now - now % SECONDS_IN_HOUR + time.timezone
-    # week_time = now - now % SECONDS_IN_WEEK - SECONDS_IN_DAY * 4 + time.timezone
+class IndentLogger(logging.LoggerAdapter):
+    def process(self, msg, kwargs):
+        indent_level = self.extra['indent_level']
+        return '    ' * indent_level + msg, kwargs
 
-    year, month, day, hour, *_ = time.localtime()
 
-    today = datetime.date.today()
-    # isoweekday is in range 1-7, starts with Monday
-    last_sunday = today - datetime.timedelta(days=today.isoweekday() % 7)
 
-    week_number = last_sunday.isocalendar()[1]  # 1-53
+def cache_time_point_generator(dt=None):
+    if dt:
+        now = dt
+    else:
+        # now = datetime.datetime.now()
+        now = datetime.datetime.utcnow()
 
-    fourth_week_offset = 4 if week_number == 53 else (week_number - 1) % 4
-    four_weeks_date = last_sunday - datetime.timedelta(days=7 * fourth_week_offset)
+    today = now.date()
+    # weekday is in [0,6]; 0 is Monday
+    last_monday = today - datetime.timedelta(days=today.weekday())
 
-    twenty_one_week_offset = 26 if week_number == 53 else (week_number - 1) % 26
-    twenty_six_weeks_date = last_sunday - datetime.timedelta(days=7 * twenty_one_week_offset)
+    first_monday = datetime.date(1970, 1, 5)
+    days_from_first_monday = (last_monday - first_monday).days
+
+    last_4th_sunday = last_monday - datetime.timedelta(days=days_from_first_monday % (7 * 4))
+    last_24th_sunday = last_monday - datetime.timedelta(days=days_from_first_monday % (7 * 24))
+
+    year, month, day, hour, *_ = now.timetuple()
+    return [
+        datetime.datetime(year, month, day, hour, 0, 0, 0),
+        datetime.datetime(year, month, day, 0, 0, 0, 0),
+        last_monday,
+        last_4th_sunday,
+        last_24th_sunday,
+    ]
 
     return [
         time.mktime((year, month, day, hour, 0, 0, 0, 0, 0)),
         time.mktime((year, month, day, 0, 0, 0, 0, 0, 0)),
-        time.mktime(last_sunday.timetuple()),
-        time.mktime(four_weeks_date.timetuple()),
-        time.mktime(twenty_six_weeks_date.timetuple()),
+        time.mktime(last_monday.timetuple()),
+        time.mktime(last_4th_sunday.timetuple()),
+        time.mktime(last_24th_sunday.timetuple()),
     ]
 
+pprint(cache_time_point_generator())
 
-def read_manifest(module_dir):
-    manifest_path = os.path.join(module_dir, '__manifest__.py')
-    # if not os.path.isfile(manifest_path):
-    #     raise FileNotFoundError("No Odoo manifest found in %s" % addon_dir)
-    with open(manifest_path) as manifest_file:
-        return ast.literal_eval(manifest_file.read())
+
+# def read_manifest(module_dir):
+#     manifest_path = os.path.join(module_dir, '__manifest__.py')
+#     # if not os.path.isfile(manifest_path):
+#     #     raise FileNotFoundError("No Odoo manifest found in %s" % addon_dir)
+#     with open(manifest_path) as manifest_file:
+#         return ast.literal_eval(manifest_file.read())
 
 
 contrib_module_path = '/home/voronin/.local/share/virtualenvs/sintez_addons-7QRHjYmJ/lib/python3.6/site-packages/odoo/addons'
@@ -68,11 +84,8 @@ def contrib_module_deps(contrib_module_path):
     return res
 
 
-# def module_graph(odoo_version, modules):
-#     pass
-#
-# def modules_cache(module_paths, modules, timestamp):
-#     pass
+def install_recursively(modules, cache_time_points, level=0):
+    indent_logger = IndentLogger(logger, {'indent_level': level})
 
 
 def create_database(name, modules):

@@ -27,3 +27,9 @@ Run tests:
 ```console
 pipenv run fulltest
 ```
+
+# After `import odoo` local time zone changes to UTC
+# We want to find out OS time zone
+# echo $TZ - empty
+# date +%Z - UTC
+# cat /etc/timezone - Local

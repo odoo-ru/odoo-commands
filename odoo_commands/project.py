@@ -7,7 +7,6 @@ from typing import List, Set
 
 class Module:
     # __slots__ = ('path', 'name')
-    # sequence = 100
 
     def __init__(self, project, name, path):
         self.project = project
@@ -17,25 +16,9 @@ class Module:
     @property
     @lru_cache(maxsize=None)
     def manifest(self):
-    # @property
-    # @lru_cache(1024)
-    # def manifest(self):
-        # module_dir = self.module_path(module_name)
-        manifest_path = os.path.join(self.path, '__manifest__.py')
-        # if not os.path.isfile(manifest_path):
-        #     raise FileNotFoundError("No Odoo manifest found in %s" % addon_dir)
-        with open(manifest_path) as manifest_file:
+        # manifest_path = os.path.join(self.path, '__manifest__.py')
+        with open(self.path / '__manifest__.py') as manifest_file:
             return ast.literal_eval(manifest_file.read())
-        # attrs.setdefault('sequence', 100)
-        # if not attrs.get('depends'):
-        #     attrs['depends'] = ['base']
-        self.attrs = attrs
-
-        if self.name == 'base':
-            self.depends = []
-        else:
-            depends = attrs.get('depends')
-            self.depends = depends if depends else ['base']
 
     def data_file_path(self):
         yield from self.manifest.get('data', [])
