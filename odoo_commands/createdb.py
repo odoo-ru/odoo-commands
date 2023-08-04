@@ -163,15 +163,19 @@ def contrib_module_deps(contrib_module_path):
     return res
 
 
-def install(modules, cache_time_points, level=0):
+def get_cache_timestamp_modules(modules, cache_timestamp):
+    pass
+
+
+def install(modules, cache_timestamps, level=0):
     # indent_logger = IndentLogger(logger, {'indent_level': level})
-    cache_time_point = next(cache_time_points)
-    cache_time_point_modules = get_modules(modules, cache_time_point)
-    h = hash(cache_time_point_modules)
+    cache_timestamp = next(cache_timestamps)
+    cache_timestamp_modules = get_cache_timestamp_modules(modules, cache_timestamp)
+    h = hash(cache_timestamp_modules)
     database = get_database(h)
     if not database:
-        database = install(cache_time_point_modules, cache_time_points)
-    return install_modules(database, modules - cache_time_point_modules)
+        database = install(cache_timestamp_modules, cache_timestamps)
+    return install_modules(database, modules - cache_timestamp_modules)
 
 
 def install_modules(database, modules_to_install):
