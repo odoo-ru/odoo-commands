@@ -51,6 +51,17 @@ class FakeDatabase:
         if query == 'select digits from decimal_precision where name=%s':
             return self.decimal_precision(params)
 
+        # modules/loading.py:reset_modules_state
+        if query in {
+            "UPDATE ir_module_module SET state='installed' WHERE state IN ('to remove', 'to upgrade')",
+            "UPDATE ir_module_module SET state='uninstalled' WHERE state='to install'",
+        }:
+            return []
+
+        # ResLang._check_active
+        if query == 'SELECT count(1) FROM "res_lang" WHERE ("res_lang"."active" = %s)':
+            return [1]
+
         raise NotImplementedError(f'Unknown SQL query:\n{query}\n\nparams: {params}')
 
     @property
