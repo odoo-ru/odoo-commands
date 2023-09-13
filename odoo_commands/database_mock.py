@@ -11,11 +11,8 @@ class FakeDatabase:
            AND n.nspname = 'public'
     """
 
-    def __init__(self, installed_module_names_callback=NotImplemented):
-        if callable(installed_module_names_callback):
-            installed_module_names_callback = property(lru_cache(maxsize=1)(installed_module_names_callback))
-            type(self).installed_module_names_callback = installed_module_names_callback
-        # self.installed_module_names_callback = installed_module_names_callback
+    def __init__(self, installed_modules):
+        self.installed_modules = installed_modules
 
     def execute(self, query, params):
         if query in {
@@ -37,7 +34,7 @@ class FakeDatabase:
             query == "SELECT name from ir_module_module WHERE state IN %s"
             and params == (('installed', 'to upgrade', 'to remove'),)
         ):
-            return [(module_name,) for module_name in self.installed_module_names_callback]
+            return [(module.name,) for module in self.installed_modules]
 
         if query == "SELECT name, id, state, demo AS dbdemo, latest_version AS installed_version  FROM ir_module_module WHERE name IN %s":
             result = []
@@ -70,12 +67,12 @@ class FakeDatabase:
         return [
             {
                 'id': 1,
-                'name': module_name,
+                'name': module.name,
                 'state': 'installed',
                 'dbdemo': False,
                 'installed_version': '11.0.1.3',
             }
-            for module_id, module_name in enumerate(self.installed_module_names_callback, start=1)
+            for module_id, module in enumerate(self.installed_modules, start=1)
         ]
 
     def decimal_precision(self, names):
@@ -83,7 +80,7 @@ class FakeDatabase:
 
 
 class CursorMock:
-    db = FakeDatabase()
+    db = NotImplemented
 
     def __init__(self, pool, dbname, dsn, serialized=True):
         self.dbname = dbname

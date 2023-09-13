@@ -9,7 +9,27 @@ from odoo_commands.config import read_config
 
 
 class Module:
+    # TODO Add slots
     # __slots__ = ('path', 'name')
+
+    # Default info from odoo/modules/module.py:load_information_from_description_file()
+    default_info = {
+        'application': False,
+        'author': 'Odoo S.A.',
+        'auto_install': False,
+        'category': 'Uncategorized',
+        'depends': [],
+        'description': '',
+        # 'icon': get_module_icon(module),
+        'installable': True,
+        'license': 'LGPL-3',
+        'post_load': None,
+        'version': '1.0',
+        'web': False,
+        'website': 'https://www.odoo.com',
+        'sequence': 100,
+        'summary': '',
+    }
 
     def __init__(self, project, name, path):
         self.project = project
@@ -19,9 +39,35 @@ class Module:
     @property
     @lru_cache(maxsize=None)
     def manifest(self):
-        # manifest_path = os.path.join(self.path, '__manifest__.py')
         with open(self.path / '__manifest__.py') as manifest_file:
             return ast.literal_eval(manifest_file.read())
+
+    def __getattr__(self, item):
+        if item in self.manifest:
+            return self.manifest[item]
+        else:
+            return self.default_info[item]
+
+    @property
+    @lru_cache(maxsize=1)
+    def icon(self):
+        if 'icon' in self.manifest:
+            return self.manifest['icon']
+        # Copy-paste from odoo/modules/module.py:get_module_icon()
+        icon_default_path = 'static/description/icon.png'
+        if (self.path / icon_default_path).exists():
+            return f'/{self.name}/{icon_default_path}'
+        return f'/base/{icon_default_path}'
+
+    @lru_cache(maxsize=1)
+    def version(self, serie):
+        # Copy-paste from odoo/modules/module.py:adapt_version()
+        version = self.__getattr__('version')
+        if version == serie or not version.startswith(serie + '.'):
+            version = '%s.%s' % (serie, version)
+        return version
+
+    # TODO Read description from file
 
     def data_file_path(self):
         yield from self.manifest.get('data', [])
@@ -32,7 +78,7 @@ class Module:
 
     @property
     @lru_cache(maxsize=None)
-    def expanded_dependencies(self):
+    def expanded_dependencies_OFF(self):
         # if self.name == 'base':
         #     return {}
 
@@ -57,7 +103,7 @@ class ModuleSet(set):
     def names(self):
         return sorted(module.name for module in self)
 
-    def expanded_dependencies(self):
+    def expanded_dependencies_OFF(self):
         res = copy.copy(self)
         print(res)
         for module in self:
@@ -105,6 +151,27 @@ class OdooProject:
             modules.add(self.module(include_module))
 
         return modules
+
+    def all_required_modules(self):
+        return self.expand_deps(self.required_modules)
+
+    # @property
+    @lru_cache(maxsize=None)
+    def dependencies(self, module):
+        res = ModuleSet()
+        for depend in module.depends:
+            module = self.module(depend)
+            res.add(module)
+            res |= self.dependencies(module)
+
+        return res
+
+    def expand_deps(self, modules):
+        res = copy.copy(modules)
+        print(res)
+        for module in modules:
+            res |= self.dependencies(module)
+        return res
 
     @property
     @lru_cache()
@@ -210,6 +277,31 @@ class OdooProject:
     # def modules_cache(self, timestamp):
         # to_install + their deps - their unwanted deps - old modules - their deps
 
+    # Env
+    # TODO Use functools.cached_property for Python3.8+
+    @property
+    @lru_cache(maxsize=1)
+    def env(self):
+        # Keep ref on generator force close generator later
+        self._env_generator = self._get_env_generator()
+        return next(self._env_generator)
+
+    def _get_env_generator(self):
+        import mock
+        from odoo_commands.database_mock import CursorMock, FakeDatabase
+        import odoo
+
+        class CursorDbMock(CursorMock):
+            db = FakeDatabase(self.all_required_modules())
+
+        # TODO Try other way
+        odoo.modules.registry.Registry.in_test_mode = lambda self: True
+
+        with mock.patch('odoo.sql_db.Cursor', CursorDbMock):
+            with odoo.api.Environment.manage():
+                with odoo.registry('soma').cursor() as cr:
+                    print('2')
+                    yield odoo.api.Environment(cr, odoo.SUPERUSER_ID, {})
 
 
 # project = OdooProject()

@@ -7,7 +7,7 @@ def test_module_graph(project_path):
     project = OdooProject(project_path)
     # assert project.config.project_module_dirs == ['addons']
 
-    assert set(project.required_modules.expanded_dependencies().names()) == {
+    assert set(project.expand_deps(project.required_modules).names()) == {
         'module_name',
 
         'account',
