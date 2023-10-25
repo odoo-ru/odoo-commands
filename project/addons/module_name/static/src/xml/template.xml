@@ -1,6 +1,0 @@
-<templates>
-    <div t-name="Name" class="col-md-12">
-        <h1>Header 1</h1>
-        <p class="text-muted">Paragraph <span>Span</span></p>
-    </div>
-</templates>

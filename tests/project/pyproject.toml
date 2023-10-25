@@ -1,3 +1,9 @@
 [tool.odoo]
 project_module_dirs = ['addons']
-third_party_module_dirs = ['community_addons']
+#third_party_module_dirs = ['community_addons']
+
+#exclude_modules = ['module_c']
+#exclude_modules = ['module_a', 'module_b', 'module_c']
+exclude_modules = ['module_a', 'module_b', 'module_c', 'module_name']
+#include_modules = ['base', 'mail',]
+include_modules = ['base']

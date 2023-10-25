@@ -1,5 +1,5 @@
 {
-    'name': 'Module Name',
+    'name': 'Module A',
     'summary': '',
     'version': '11.0.1',
 
@@ -9,14 +9,14 @@
     'icon': '/base_ext/static/description/icon.png',
 
     'depends': [
-        'sale',
+        'module_b',
     ],
 
     'data': [
-        'security/base_groups.xml',
-        'security/base_access.xml',
-        'security/base_rules.xml',
+        'security/a_groups.xml',
+        'security/a_access.xml',
+        'security/a_rules.xml',
 
-        'views/sale_order.xml',
+        'views/a.xml',
     ],
 }

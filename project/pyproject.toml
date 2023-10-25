@@ -1,3 +1,0 @@
-[tool.odoo]
-project_module_dirs = ['addons']
-third_party_module_dirs = ['community_addons']

@@ -1,9 +1,10 @@
 import ast
+import functools
 import os
 import pathlib
-import copy
+from pathlib import Path
 from functools import lru_cache
-from typing import List, Set
+from typing import Iterable, Container
 
 from odoo_commands.config import read_config
 
@@ -31,10 +32,12 @@ class Module:
         'summary': '',
     }
 
-    def __init__(self, project, name, path):
-        self.project = project
-        self.name = name
+    def __init__(self, path):
+        self.name = path.name
         self.path = pathlib.Path(path)
+
+    def __repr__(self):
+        return f'OdooModule({self.name!r})'
 
     @property
     @lru_cache(maxsize=None)
@@ -76,125 +79,153 @@ class Module:
     def depends(self):
         return self.manifest.get('depends', [])
 
-    @property
-    @lru_cache(maxsize=None)
-    def expanded_dependencies_OFF(self):
-        # if self.name == 'base':
-        #     return {}
 
-        # depends = self.manifest.get('depends', [])
-        # if not depends:
-        #     depends = ['base']
-
-        res = ModuleSet()
-        for depend in self.depends:
-            module = self.project.module(depend)
-            res.add(module)
-            res |= module.expanded_dependencies
-
-        return res
-
-    # def topological_depends(self):
-    #     graph = nx.DiGraph()
-    #     return list(nx.lexicographical_topological_sort(graph, key=lambda module: module.sequence))
+# https://stackoverflow.com/questions/798442/what-is-the-correct-or-best-way-to-subclass-the-python-set-class-adding-a-new
+def wrap(method):
+    @functools.wraps(method)
+    def wrapped_method(*args, **kwargs):
+        return ModuleSet(method(*args, **kwargs))
+    return wrapped_method
 
 
-class ModuleSet(set):
-    def names(self):
+class ModuleSet(set):# -> Set[Module]
+    def names_list(self):
         return sorted(module.name for module in self)
 
-    def expanded_dependencies_OFF(self):
-        res = copy.copy(self)
-        print(res)
-        for module in self:
-            res |= module.expanded_dependencies
-        return res
+    def names(self):
+        return {module.name for module in self}
+
+    def depends(self):
+        return set().union(*[module.depends for module in self]) - self.names()
+
+    for method in [
+        '__or__',
+        '__and__',
+        '__sub__',
+        'difference',
+        'difference_update',
+        'intersection_update',
+        'symmetric_difference',
+        'symmetric_difference_update',
+        'intersection',
+        'union',
+        'copy',
+    ]:
+        exec(f'{method} = wrap(set.{method})')
 
 
 class OdooProject:
     def __init__(self, path='.'):
         self.path = pathlib.Path(path).resolve()
         # self.project_modules_paths = project_module_paths
-        # self.cache = {}
         # self.core_module_path = None
 
     @property
-    def config(self):
+    def project_config(self):
         return read_config(self.path / 'pyproject.toml')
 
-    @property
-    def project_module_dirs(self):
-        return [
-            pathlib.Path(self.path, modules_dir).resolve()
-            for modules_dir in self.config.project_module_dirs
-        ]
-
-    # @property
-    # def required_module_names(self):
-    #     return (
-    #         self.dir_module_names(self.project_module_dirs)
-    #         | set(self.config.include_modules)
-    #         - set(self.config.exclude_modules)
-    #     )
+    def _resolve_module_paths(self, paths):
+        return [pathlib.Path(self.path, path).resolve() for path in paths]
 
     @property
-    def required_modules(self):
-        modules = ModuleSet()
+    def project_module_paths(self):
+        return self._resolve_module_paths(self.project_config.project_module_dirs)
 
-        for dir in self.project_module_dirs:
-            for subdir in dir.iterdir():
-                if self.is_module(subdir):
-                    if subdir.name not in self.config.exclude_modules:
-                        modules.add(Module(self, subdir.name, subdir))
-
-        for include_module in self.config.include_modules:
-            modules.add(self.module(include_module))
-
-        return modules
-
-    def all_required_modules(self):
-        return self.expand_deps(self.required_modules)
-
-    # @property
-    @lru_cache(maxsize=None)
-    def dependencies(self, module):
-        res = ModuleSet()
-        for depend in module.depends:
-            module = self.module(depend)
-            res.add(module)
-            res |= self.dependencies(module)
-
-        return res
-
-    def expand_deps(self, modules):
-        res = copy.copy(modules)
-        print(res)
-        for module in modules:
-            res |= self.dependencies(module)
-        return res
+    @property
+    def third_party_module_paths(self):
+        return self._resolve_module_paths(self.project_config.third_party_module_dirs)
 
     @property
     @lru_cache()
     def modules_paths(self):
-        # import odoo
-        # core_modules_path = pathlib.Path(odoo.tools.config['root_path'], 'addons')
+        # In fact core_modules_path is os.path.join(odoo.tools.config['root_path'], 'addons').
+        # We don't want to import odoo. It's long one second almost.
         import importlib
         odoo_path = importlib.util.find_spec('odoo').submodule_search_locations[0]
-        core_modules_path = pathlib.Path(odoo_path, 'addons')
-        return self.project_module_dirs + [core_modules_path]
+        core_modules_path = pathlib.Path(odoo_path, 'addons').resolve()
+
+        return (
+            self.project_module_paths
+            + self.third_party_module_paths
+            + [core_modules_path]
+        )
 
     @staticmethod
     def is_module(module_path):
-        return os.path.isdir(module_path) and os.path.isfile(os.path.join(module_path, '__manifest__.py'))
+        return (
+            os.path.isdir(module_path)
+            and os.path.isfile(os.path.join(module_path, '__manifest__.py'))
+        )
 
-    @lru_cache(maxsize=1024)
-    def module(self, module_name):
-        for modules_path in self.modules_paths:
-            module_path = os.path.join(modules_path, module_name)
-            if self.is_module(module_path):
-                return Module(self, module_name, module_path)
+    def collect_modules(self, paths: Iterable[Path], exclude: Container[str]=()):
+        modules = ModuleSet()
+        for module_path in paths:
+            for subdir in module_path.iterdir():
+                if subdir.name not in exclude and self.is_module(subdir):
+                    modules.add(Module(subdir))
+        return modules
 
-        raise LookupError(f'No module found: {module_name}')
+    def find_modules(self, module_names):
+        modules = ModuleSet()
+        for module_name in module_names:
+            for modules_path in self.modules_paths:
+                module_path = modules_path / module_name
+                if self.is_module(module_path):
+                    modules.add(Module(module_path))
+                    break
+            else:
+                raise LookupError(f'No module found: {module_name}')
+
+        return modules
+
+    # @lru_cache(maxsize=1024)
+    # def module(self, module_name):
+    #     for modules_path in self.modules_paths:
+    #         module_path = modules_path / module_name
+    #         if self.is_module(module_path):
+    #             return Module(module_path)
+    #
+    #     raise LookupError(f'No module found: {module_name}')
+
+    @property
+    def required_modules(self):
+        return (
+            self.collect_modules(self.project_module_paths, exclude=self.project_config.exclude_modules)
+            | self.find_modules(self.project_config.include_modules)
+        )
+
+    def expand_dependencies(self, modules):
+        modules_to_check_depends = modules
+
+        while True:
+            module_depends_names = modules_to_check_depends.depends()
+            if module_depends_names:
+                modules_to_check_depends = self.find_modules(module_depends_names)
+                modules |= modules_to_check_depends
+            else:
+                break
+
+        return modules
+
+    def auto_install_modules(self, modules: ModuleSet):
+        auto_install_modules = ModuleSet()
+        for module in self.collect_modules(self.modules_paths, exclude=modules.names()):
+            if module.auto_install and set(module.depends) <= modules.names():
+                auto_install_modules.add(module)
+        return auto_install_modules
+
+    @property
+    def installed_modules(self):
+        modules = self.expand_dependencies(self.required_modules)
+
+        while True:
+            auto_install_modules = self.auto_install_modules(modules)
+            if auto_install_modules:
+                modules |= auto_install_modules
+            else:
+                break
+
+        return modules
 
     # def field(self, module_name, model_name, field_name):
     #     module = self.module(module_name)
@@ -272,11 +303,6 @@ class OdooProject:
             module_path = self.path(module_name)
 
 
-
-
-    # def modules_cache(self, timestamp):
-        # to_install + their deps - their unwanted deps - old modules - their deps
-
     # Env
     # TODO Use functools.cached_property for Python3.8+
     @property
@@ -292,7 +318,7 @@ class OdooProject:
         import odoo
 
         class CursorDbMock(CursorMock):
-            db = FakeDatabase(self.all_required_modules())
+            db = FakeDatabase(self.installed_modules())
 
         # TODO Try other way
         odoo.modules.registry.Registry.in_test_mode = lambda self: True
@@ -302,10 +328,3 @@ class OdooProject:
                 with odoo.registry('soma').cursor() as cr:
                     print('2')
                     yield odoo.api.Environment(cr, odoo.SUPERUSER_ID, {})
-
-
-# project = OdooProject()
-# module = project.module('soma')
-# module.field['sale.order', 'name'].translate
-#
-# project.field['soma', 'sale.order', 'name']
