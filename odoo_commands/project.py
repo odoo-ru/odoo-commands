@@ -32,12 +32,30 @@ class Module:
         'summary': '',
     }
 
-    def __init__(self, path):
-        self.name = path.name
-        self.path = pathlib.Path(path)
+    _cache = {}
+
+    def __new__(cls, path, *args, **kwargs):
+        path = Path(path).resolve()
+        if not is_module(path):
+            raise ValueError()
+
+        if path in cls._cache:
+            return cls._cache[path]
+
+        instance = super().__new__(cls, *args, **kwargs)
+        instance.path = path
+        instance.name = path.name
+        cls._cache[path] = instance
+        return instance
 
     def __repr__(self):
         return f'OdooModule({self.name!r})'
+
+    def __eq__(self, other):
+        return self.path == other.path
+
+    def __hash__(self):
+        return self.path.__hash__()
 
     @property
     @lru_cache(maxsize=None)
@@ -98,6 +116,9 @@ class ModuleSet(set):# -> Set[Module]
     def depends(self):
         return set().union(*[module.depends for module in self]) - self.names()
 
+    def sorted(self):
+        return sorted(self, key=lambda m: m.name)
+
     for method in [
         '__or__',
         '__and__',
@@ -112,6 +133,10 @@ class ModuleSet(set):# -> Set[Module]
         'copy',
     ]:
         exec(f'{method} = wrap(set.{method})')
+
+
+def is_module(path: Path):
+    return (path / '__manifest__.py').is_file()
 
 
 class OdooProject:
@@ -150,33 +175,24 @@ class OdooProject:
             + [core_modules_path]
         )
 
-    @staticmethod
-    def is_module(module_path):
-        return (
-            os.path.isdir(module_path)
-            and os.path.isfile(os.path.join(module_path, '__manifest__.py'))
-        )
-
-    def collect_modules(self, paths: Iterable[Path], exclude: Container[str]=()):
+    def collect_modules(self, paths: Iterable[Path], exclude: Container[str] = ()):
         modules = ModuleSet()
         for module_path in paths:
             for subdir in module_path.iterdir():
-                if subdir.name not in exclude and self.is_module(subdir):
+                if subdir.name not in exclude and is_module(subdir):
                     modules.add(Module(subdir))
         return modules
 
-    def find_modules(self, module_names):
-        modules = ModuleSet()
-        for module_name in module_names:
-            for modules_path in self.modules_paths:
-                module_path = modules_path / module_name
-                if self.is_module(module_path):
-                    modules.add(Module(module_path))
-                    break
-            else:
-                raise LookupError(f'No module found: {module_name}')
+    def module(self, module_name):
+        for modules_path in self.modules_paths:
+            module_path = modules_path / module_name
+            if is_module(module_path):
+                # TODO Cache?
+                return Module(module_path)
+        raise LookupError(f'No module found: {module_name}')
 
-        return modules
+    def find_modules(self, module_names):
+        return ModuleSet(self.module(module_name) for module_name in module_names)
 
     # @lru_cache(maxsize=1024)
     # def module(self, module_name):
@@ -226,6 +242,27 @@ class OdooProject:
                 break
 
         return modules
+
+    def topologic_dependencies(self, module: Module):
+        modules = self.expand_dependencies(ModuleSet({module}))
+
+        result = []
+        visited = set()
+
+        def visit(modd):
+            if modd not in visited:
+                visited.add(modd)
+                if modd in modules:
+                    for depend_module in self.find_modules(modd.depends).sorted():
+                        visit(depend_module)
+                    result.append(modd)
+
+        for module in modules.sorted():
+            visit(module)
+
+        return result
+
+    # =======================================================================
 
     # def field(self, module_name, model_name, field_name):
     #     module = self.module(module_name)

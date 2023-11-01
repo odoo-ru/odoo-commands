@@ -1,6 +1,14 @@
 import pathlib
 
-from odoo_commands.project import OdooProject
+from odoo_commands.project import OdooProject, Module
+
+
+class TestModule:
+    def test_module(self, project_path):
+        module_a = Module(project_path / 'addons/module_a')
+        module_a2 = Module(project_path / 'addons/module_a')
+        assert module_a == module_a2
+        assert module_a is module_a2
 
 
 def test_module_graph(project_path):
