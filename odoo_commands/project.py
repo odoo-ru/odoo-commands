@@ -57,6 +57,9 @@ class Module:
     def __hash__(self):
         return self.path.__hash__()
 
+    def __truediv__(self, path):
+        return self.path / path
+
     @property
     @lru_cache(maxsize=None)
     def manifest(self):

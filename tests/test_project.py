@@ -1,4 +1,4 @@
-import pathlib
+from pathlib import Path
 
 from odoo_commands.project import OdooProject, Module
 
@@ -10,6 +10,8 @@ class TestModule:
         assert module_a == module_a2
         assert module_a is module_a2
 
+    def test_relative_path(self, module_a):
+        assert module_a / 'models/model.py' == Path(module_a.path, 'models/model.py')
 
 def test_module_graph(project_path):
     project = OdooProject(project_path)
