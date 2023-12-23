@@ -2,9 +2,12 @@ import ast
 import functools
 import os
 import pathlib
+from collections import ChainMap
 from pathlib import Path
 from functools import lru_cache
 from typing import Iterable, Container
+
+from babel.core import Locale
 
 from odoo_commands.config import read_config
 
@@ -100,6 +103,31 @@ class Module:
     def depends(self):
         return self.manifest.get('depends', [])
 
+    def _file_translations(self, po_file_name):
+        from odoo.tools.translate import PoFile
+
+        result = {}
+        for subdir in ['i18n_extra', 'i18n']:
+            po_file_path = self / subdir / po_file_name
+            if not po_file_path.exists():
+                continue
+            with open(po_file_path, 'rb') as f:
+                for translation in PoFile(f):
+                    result[translation[:4]] = translation[4]
+
+        return result
+
+    @lru_cache()
+    def translations(self, locale_identifier):
+        locale = Locale.parse(locale_identifier)
+
+        base_trans = self._file_translations(f'{locale.language}.po')
+        if not locale.territory or locale.territory.lower() == locale.language:
+            return base_trans
+
+        # if locale.territory and locale.territory.lower() != locale.language:
+        spec_trans = self._file_translations(f'{locale_identifier}.po')
+        return ChainMap(spec_trans, base_trans)
 
 # https://stackoverflow.com/questions/798442/what-is-the-correct-or-best-way-to-subclass-the-python-set-class-adding-a-new
 def wrap(method):
@@ -246,9 +274,7 @@ class OdooProject:
 
         return modules
 
-    def topologic_dependencies(self, module: Module):
-        modules = self.expand_dependencies(ModuleSet({module}))
-
+    def topologic_dependencies(self, modules: ModuleSet):
         result = []
         visited = set()
 
@@ -264,6 +290,13 @@ class OdooProject:
             visit(module)
 
         return result
+
+    @lru_cache()
+    def installed_modules_list(self, inversed=False):
+        modules = self.topologic_dependencies(self.installed_modules)
+        if inversed:
+            modules = modules.reverse()
+        return modules
 
     # =======================================================================
 
@@ -358,7 +391,7 @@ class OdooProject:
         import odoo
 
         class CursorDbMock(CursorMock):
-            db = FakeDatabase(self.installed_modules())
+            db = FakeDatabase(self.installed_modules)
 
         # TODO Try other way
         odoo.modules.registry.Registry.in_test_mode = lambda self: True
@@ -368,3 +401,44 @@ class OdooProject:
                 with odoo.registry('soma').cursor() as cr:
                     print('2')
                     yield odoo.api.Environment(cr, odoo.SUPERUSER_ID, {})
+
+    # ========== Translation ==========
+    def search_translation(self, tupl, lang=None):
+        for module in self.installed_modules_list():
+            translations = module.translations(lang or self.lang)
+            if tupl in translations:
+                return translations[tupl]
+
+    def code_translation(self, file_path, value, lineno=None):
+        # if not file_path.startswith('addons/'):
+        #     file_path = f'addons/{file_path}'
+        return self.search_translation(('code', file_path, lineno, value))
+
+    def selection(self, model_name, field_name, value, lang=None):
+        field = self.env[model_name]._fields[field_name]
+        for selection_value, selection_string in field.selection:
+            if value == selection_value:
+                break
+        else:
+            raise ValueError('Invalid selection value')
+        return self.search_translation(('selection', f'{model_name},{field_name}', '0', selection_string), lang=lang)
+
+    def constraint(self, model, value):
+        return self.search_translation(('constraint', model, '0', value))
+
+    def sql_constraint(self, model, value):
+        return self.search_translation(('sql_constraint', model, '0', value))
+
+    def model_translation(self, model_name, field_name, xml_id, origin, lang=None):
+        return self.search_translation(('model', f'{model_name},{field_name}', xml_id, origin), lang=lang)
+
+    def model_description(self, model_name, lang=None):
+        model = self.env[model_name]
+        xml_id = f'{model._module}.model_{model_name.replace(".", "_")}'
+        return self.model_translation('ir.model', 'name', xml_id, model._description, lang=lang)
+
+    # def field_description(self, module_name, model_name, field_name):
+    def field_description(self, model_name, field_name, lang=None):
+        field = self.env[model_name]._fields[field_name]
+        xml_id = f'{field._module}.field_{model_name.replace(".", "_")}_{field_name}'
+        return self.model_translation('ir.model.fields', 'field_description', xml_id, field.string, lang=lang)

@@ -1,6 +1,6 @@
 import pathlib
 
-from odoo_commands.project import OdooProject
+from odoo_commands.project import OdooProject, ModuleSet
 
 
 def test_module_graph(project_path):
@@ -10,7 +10,7 @@ def test_module_graph(project_path):
     module = project.module('module_name')
     assert module.name == 'module_name'
 
-    module_list = project.topologic_dependencies(module)
+    module_list = project.topologic_dependencies(project.expand_dependencies(ModuleSet({module})))
     assert [module.name for module in module_list] == [
         'base',
         'decimal_precision',
