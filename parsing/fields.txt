@@ -1,4 +1,3 @@
-s = """
 Field
     string
 
@@ -33,4 +32,3 @@ One2many(_RelationalMulti)
     comodel_name, inverse_name, string
 Many2many(_RelationalMulti)
     comodel_name, relation, column1, column2, string
-"""

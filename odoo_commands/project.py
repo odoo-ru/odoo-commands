@@ -434,11 +434,15 @@ class OdooProject:
 
     def model_description(self, model_name, lang=None):
         model = self.env[model_name]
+        if not lang:
+            return model._description
         xml_id = f'{model._module}.model_{model_name.replace(".", "_")}'
         return self.model_translation('ir.model', 'name', xml_id, model._description, lang=lang)
 
     # def field_description(self, module_name, model_name, field_name):
     def field_description(self, model_name, field_name, lang=None):
         field = self.env[model_name]._fields[field_name]
+        if not lang:
+            return field.string
         xml_id = f'{field._module}.field_{model_name.replace(".", "_")}_{field_name}'
         return self.model_translation('ir.model.fields', 'field_description', xml_id, field.string, lang=lang)
