@@ -4,7 +4,7 @@ version = "0.1.1-dev"
 description = "Project description"
 authors = ["Dmitry Voronin <dimka665@gmail.com>"]
 
-repository = "https://github.com/voronind/ocli"
+repository = "https://github.com/odoo-ru/odoo-commands"
 license = "MIT"
 classifiers = [
     "License :: OSI Approved :: MIT License",
@@ -52,39 +52,8 @@ norecursedirs = [".*/", "docs/"]
 max-line-length = 120
 exclude = [".*/", "docs/_build/"]
 
-[tool.coverage.run]
-branch = true
-source = "ocli/"
-
 [tool.mypy]
 check_untyped_defs = true
-
-#[testenv]
-#skip_install = true
-#deps = pipenv
-#commands =
-#    pipenv install --dev --skip-lock
-#    pipenv run fulltest
-#
-#[testenv:docs]
-#basepython = python3.6
-#deps =
-#    pipenv
-#    sphinx
-#commands =
-#    pipenv install --skip-lock
-#    pipenv run doctest
-#    pipenv run build-docs
-
-#[scripts]
-#test = "pytest --exitfirst --failed-first"
-#fulltest = "pytest --flake8 --cov --cov-fail-under=80 --no-cov-on-fail ocli tests docs/conf.py"
-## We use equivalent of "make mode":
-## sphinx-build -M builder source build  =>
-## sphinx-build -b builder -d source/doctrees source build/builder
-#docs = "sphinx-autobuild --open-browser --port 0 --delay 1 -d docs/_build/doctrees docs docs/_build/html"
-#doctest = "sphinx-build -b doctest -d docs/_build/doctrees docs docs/_build/doctest"
-#build-docs = "sphinx-build -b html -d docs/_build/doctrees docs docs/_build/html"
 
 [build-system]
 requires = ["poetry-core"]

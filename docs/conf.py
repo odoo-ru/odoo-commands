@@ -17,7 +17,7 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'OCLI - Odoo Command Line Interface'
+project = 'Odoo Commands'
 copyright = '2021, Dmitry Voronin'
 author = 'Dmitry Voronin'
 
