@@ -1,5 +1,15 @@
 -e ./odoo-11.0.post20201201
 
+beautifulsoup4==4.12.2
+certifi==2023.11.17
+chardet==3.0.4
+idna==2.7
+olefile==0.47
+pbr==6.0.0
+six==1.16.0
+soupsieve==2.3.2.post1
+urllib3==1.24.3
+
 Babel==2.3.4
 decorator==4.0.10
 docutils==0.12
