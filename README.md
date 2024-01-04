@@ -13,21 +13,27 @@ pip install odoo-commands
 
 Development
 -----------
-We need installed `pyenv` and `pipenv`.
+Clone
 ```console
 git clone git@github.com:odoo-ru/odoo-commands.git
-
 cd odoo-commands
-pipenv install --dev
+```
+Download and unpack all supported Odoos
+```commandline
+./download-odoo.sh
+```
+Install [nox](https://github.com/wntrblm/nox)
+```commandline
+pipx install now
+```
+Create environments for all presented Python interpreters and run tests
+```commandline
+nox
+```
+Run tests using existing environment
+```commandline
+nox -R -s 
 ```
 
-Run tests:
-```console
-pipenv run fulltest
-```
 
-# After `import odoo` local time zone changes to UTC
-# We want to find out OS time zone
-# echo $TZ - empty
-# date +%Z - UTC
-# cat /etc/timezone - Local
+
