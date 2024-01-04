@@ -34,3 +34,7 @@ Run tests using existing environments
 ```commandline
 nox -R
 ```
+For dependencies conversion
+```commandline
+poetry export --with dev -o requirements.txt
+```
