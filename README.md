@@ -24,16 +24,13 @@ Download and unpack all supported Odoos
 ```
 Install [nox](https://github.com/wntrblm/nox)
 ```commandline
-pipx install now
+pipx install nox
 ```
-Create environments for all presented Python interpreters and run tests
+Create environments for all presented Python interpreters
 ```commandline
-nox
+nox --install-only
 ```
-Run tests using existing environment
+Run tests using existing environments
 ```commandline
-nox -R -s 
+nox -R
 ```
-
-
-
