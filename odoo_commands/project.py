@@ -7,9 +7,10 @@ from pathlib import Path
 from functools import lru_cache
 from typing import Iterable, Container
 
+import dataclasses
 from babel.core import Locale
 
-from odoo_commands.config import read_config
+from odoo_commands.config import read_config, Config
 
 
 class Module:
@@ -105,6 +106,7 @@ class Module:
 
     def _file_translations(self, po_file_name):
         from odoo.tools.translate import PoFile
+        # from odoo.tools.translate import PoFileReader
 
         result = {}
         for subdir in ['i18n_extra', 'i18n']:
@@ -113,6 +115,10 @@ class Module:
                 continue
             with open(po_file_path, 'rb') as f:
                 for translation in PoFile(f):
+                # for translation in PoFileReader(f):
+                    # Odoo 11 returns
+                    # (trans_type, name, res_id, source, trad, '\n'.join(comments))
+                    # print(translation)
                     result[translation[:4]] = translation[4]
 
         return result
@@ -171,25 +177,25 @@ def is_module(path: Path):
 
 
 class OdooProject:
-    def __init__(self, path='.'):
+    def __init__(self, path='.', modules=None, **options):
         self.path = pathlib.Path(path).resolve()
-        # self.project_modules_paths = project_module_paths
-        # self.core_module_path = None
+        self.modules = modules
+
+        config_dict = dataclasses.asdict(self.project_file_config)
+        config_dict.update(options)
+        self.project_config = Config(**config_dict)
 
     @property
-    def project_config(self):
+    def project_file_config(self):
         return read_config(self.path / 'pyproject.toml')
-
-    def _resolve_module_paths(self, paths):
-        return [pathlib.Path(self.path, path).resolve() for path in paths]
 
     @property
     def project_module_paths(self):
-        return self._resolve_module_paths(self.project_config.project_module_dirs)
+        return [(self.path / path) for path in self.project_config.project_module_dirs]
 
     @property
     def third_party_module_paths(self):
-        return self._resolve_module_paths(self.project_config.third_party_module_dirs)
+        return [(self.path / path) for path in self.project_config.third_party_module_dirs]
 
     @property
     @lru_cache()
@@ -214,6 +220,7 @@ class OdooProject:
                     modules.add(Module(subdir))
         return modules
 
+    @lru_cache(maxsize=1024)
     def module(self, module_name):
         for modules_path in self.modules_paths:
             module_path = modules_path / module_name
@@ -225,17 +232,10 @@ class OdooProject:
     def find_modules(self, module_names):
         return ModuleSet(self.module(module_name) for module_name in module_names)
 
-    # @lru_cache(maxsize=1024)
-    # def module(self, module_name):
-    #     for modules_path in self.modules_paths:
-    #         module_path = modules_path / module_name
-    #         if self.is_module(module_path):
-    #             return Module(module_path)
-    #
-    #     raise LookupError(f'No module found: {module_name}')
-
     @property
     def required_modules(self):
+        if self.modules:
+            return self.find_modules(self.modules)
         return (
             self.collect_modules(self.project_module_paths, exclude=self.project_config.exclude_modules)
             | self.find_modules(self.project_config.include_modules)

@@ -50,12 +50,6 @@ def install_odoo(session, odoo):
 @nox_session
 @nox_parametrize
 def test(session, odoo):
-    print(session.posargs)
-    nox.options.reuse_existing_virtualenvs = True
-    print(nox.options.reuse_existing_virtualenvs)
-    # return
-
-    # if 'install-odoo' in session.posargs:
     if odoo in {'11.0', '12.0'}:
         # use_2to3 support
         session.install('setuptools==57.5')
@@ -66,4 +60,4 @@ def test(session, odoo):
 
     session.install('-r', 'requirements.txt', '--no-deps')
 
-    session.run('pytest', 'tests')
+    session.run('pytest', 'tests', *session.posargs)

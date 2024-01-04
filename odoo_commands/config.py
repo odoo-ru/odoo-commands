@@ -5,43 +5,12 @@ from typing import List
 from dataclasses import dataclass, field
 import tomlkit
 
-
-# @dataclass(repr=False, eq=False)
 @dataclass(order=True)
 class Config:
     project_module_dirs: List[str] = field(default_factory=list)
     third_party_module_dirs: List[str] = field(default_factory=list)
     include_modules: List[str] = field(default_factory=list)
     exclude_modules: List[str] = field(default_factory=list)
-
-
-class Config2_OFF:
-
-    def __init__(self, values):
-        if not values:
-            values = {}
-        project_module_dirs = ()
-        third_party_module_dirs = ()
-        self.values = OrderedDict([
-            ('project_module_dirs', []),
-            ('third_party_module_dirs', []),
-        ])
-
-    def __getattr__(self, item):
-        return self.values[item]
-
-    def __getitem__(self, item):
-        return self.__getattr__(item.replace('-', '_'))
-
-    def __setattr__(self, key, value):
-        self.values[key] = value
-
-    def __setitem__(self, key, value):
-        self.values[key.replace('-', '_')] = value
-
-    # def _from_dict(self, dictionary):
-    #     for
-
 
 def read_config(path):
     with open(path) as config_file:

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from odoo_commands.project import OdooProject, Module
+from odoo_commands.project import OdooProject, Module, ModuleSet
 
 
 class TestModule:
@@ -13,63 +13,34 @@ class TestModule:
     def test_relative_path(self, module_a):
         assert module_a / 'models/model.py' == Path(module_a.path, 'models/model.py')
 
-def test_module_graph(project_path):
+
+def test_topologic_dependencies(project_path):
     project = OdooProject(project_path)
+    # assert project.config.module_dirs == ['addons']
+
+    module = project.module('module_a')
+    assert module.name == 'module_a'
+
+    module_list = project.topologic_dependencies(project.expand_dependencies(ModuleSet({module})))
+    assert [module.name for module in module_list] == [
+        'module_c',
+        'module_b',
+        'module_a',
+    ]
+
+
+def test_module_graph(project_path):
+    project = OdooProject(project_path, modules=['module_a'])
     # assert project.config.module_dirs == ['addons']
 
     required_modules = project.required_modules
     # assert required_modules.names() == {'module_name', 'module_a', 'module_b'}
     # assert required_modules.names() == {'module_name'}
     # assert required_modules.names() == {'base', 'mail'}
-    assert required_modules.names() == {'base'}
+    assert required_modules.names() == {'module_a'}
 
-    assert project.installed_modules.names() == {
-        'base',
-        'base_import',
-        'auth_crypt',
-        'iap',
-        'web',
-        'web_settings_dashboard',
-        'web_tour',
-        'web_planner',
-        'web_editor',
-        'web_diagram',
-        'web_kanban_gauge',
+    assert project.installed_modules.names() > {
+        'module_a',
+        'module_b',
+        'module_c',
     }
-    # assert set(project.installed_modules.names()) == {
-    #     'module_name',
-    #
-    #     'account',
-    #     'analytic',
-    #     'base',
-    #     'product',
-    #     'portal',
-    #     'base_setup',
-    #     'mail',
-    #     'http_routing',
-    #     'decimal_precision',
-    #     'web',
-    #     'bus',
-    #     'web_tour',
-    #     'sale',
-    #     'sales_team',
-    #     'web_planner',
-    # }
-
-    # sale_module = project.module('sale')
-    # assert set(sale_module.expanded_dependencies) == {
-    #     'base',
-    #     'account',
-    #     'analytic',
-    #     'product',
-    #     'portal',
-    #     'base_setup',
-    #     'mail',
-    #     'http_routing',
-    #     'decimal_precision',
-    #     'web',
-    #     'bus',
-    #     'web_tour',
-    #     'sales_team',
-    #     'web_planner',
-    # }
