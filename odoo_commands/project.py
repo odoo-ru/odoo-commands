@@ -105,8 +105,7 @@ class Module:
         return self.manifest.get('depends', [])
 
     def _file_translations(self, po_file_name):
-        from odoo.tools.translate import PoFile
-        # from odoo.tools.translate import PoFileReader
+        from odoo.tools.translate import PoFileReader
 
         result = {}
         for subdir in ['i18n_extra', 'i18n']:
@@ -114,12 +113,14 @@ class Module:
             if not po_file_path.exists():
                 continue
             with open(po_file_path, 'rb') as f:
-                for translation in PoFile(f):
-                # for translation in PoFileReader(f):
-                    # Odoo 11 returns
-                    # (trans_type, name, res_id, source, trad, '\n'.join(comments))
-                    # print(translation)
-                    result[translation[:4]] = translation[4]
+                for translation in PoFileReader(f):
+                    trns = (
+                        translation['type'],
+                        translation['name'],
+                        translation['res_id'],
+                        translation['src'],
+                    )
+                    result[trns] = translation['value']
 
         return result
 
