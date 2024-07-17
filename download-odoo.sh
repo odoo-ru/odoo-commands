@@ -4,10 +4,9 @@ mkdir -p .cache
 cd .cache
 
 odoo_versions=(
-11.0.20201201
-12.0.20211011
-13.0.20230607
-14.0.20231205
+15.0.20240701
+16.0.20240701
+17.0.20240701
 )
 for odoo_version in ${odoo_versions[@]}
 do
