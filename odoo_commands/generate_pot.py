@@ -14,7 +14,7 @@ from odoo.tools import xml_translate, html_translate
 # from odoo_commands.config import read_config, odoo_project_config
 # from .createdb import OdooProject
 from odoo_commands.project import OdooProject, Module
-from odoo_commands.odoo_translate import PoFile
+# from odoo_commands.odoo_translate import PoFile
 
 
 # d = {
@@ -90,8 +90,8 @@ class DataFileExtractor:
         },
     }
 
-    def __init__(self, field_translates: dict):
-        self.field_translates = field_translates
+    # def __init__(self, field_translates: dict):
+    #     self.field_translates = field_translates
 
 
     def extract_terms(self, module):
@@ -99,6 +99,41 @@ class DataFileExtractor:
             registry = odoo.registry(f'module:{module.name}')
 
         self.res = self.extract_from_source_code(module)
+
+    def extract_from_source_code(self, module: Module):
+        """
+        Odoo 15: odoo.tools.translate.TranslationModuleReader._babel_extract_terms()
+        """
+        # result = []
+        result = defaultdict(lambda: {
+            'modules': set(),
+            'tnrs': [],
+            'comments': set(),
+        })
+
+        for method, path_template, keywords, options, extra_comments in [
+            ('python', '**/*.py', {'_': None, '_lt': None}, {'encoding': 'UTF-8'}, []),
+            # TODO Skip static/js/lib dir
+            ('javascript', 'static/src/js/**/*.js', {'_t': None, '_lt': None}, None, ['openerp-web']),
+            ('odoo.tools.translate:babel_extract_qweb', 'static/src/xml/**/*.xml', {'_': None}, None, ['openerp-web']),
+            # ('odoo_commands.odoo_translate:babel_extract_qweb', 'static/src/xml/**/*.xml', {'_': None}, None, ['openerp-web']),
+        ]:
+            for file_path in module.path.glob(path_template):
+                display_path = 'addons/' + str(file_path)
+                with open(file_path, 'rb') as src_file:
+                    for lineno, message, comments, _ in extract.extract(
+                        method,
+                        src_file,
+                        keywords=keywords,
+                        options=options,
+                    ):
+                        # result.append((module_name, trans_type, display_path, lineno, message, '', tuple(comments + extra_comments)))
+                        message_data = result[message]
+                        message_data['modules'].add(module.name)
+                        message_data['tnrs'].append(('code', display_path, lineno))
+                        message_data['comments'].update(comments + extra_comments)
+
+        return result
 
     def extract_from_data_files(self, module):
         for data_file_path in module.data_file_paths():
@@ -167,43 +202,6 @@ class DataFileExtractor:
 
     # push_translation(module, 'model', model + "," + field_name, 'xml_name', term)
 
-    def extract_from_source_code(self, module: Module):
-        # result = []
-        result = defaultdict(lambda: {
-            'modules': set(),
-            'tnrs': [],
-            'comments': set(),
-        })
-
-        for method, path_template in {
-            ('python', '**/*.py'),
-            # ('mako', '**/*.mako'),
-            # TODO Skip static/js/lib dir
-            ('javascript', 'static/src/js/**/*.js'),
-            # ('odoo.tools.translate:babel_extract_qweb', 'static/src/xml/**/*.xml'),
-            ('odoo_commands.odoo_translate:babel_extract_qweb', 'static/src/xml/**/*.xml'),
-        }:
-            # trans_type = 'report' if method == 'mako' else 'code'
-            keywords = {'_t': None, '_lt': None} if method == 'javascript' else {'_': None}
-            # extra_comments = (
-            #     ['openerp-web']
-            #     if method in {'javascript', 'odoo.tools.translate:babel_extract_qweb'}
-            #     else []
-            # )
-
-            for file_path in module.path.glob(path_template):
-                display_path = 'addons/' + str(file_path)
-                with open(file_path, 'rb') as src_file:
-                    for lineno, message, comments, _ in extract.extract(method, src_file, keywords=keywords):
-                        if method in {'javascript', 'odoo.tools.translate:babel_extract_qweb'}:
-                            comments += ['openerp-web']
-                        # result.append((module_name, trans_type, display_path, lineno, message, '', tuple(comments + extra_comments)))
-                        message_data = result[message]
-                        message_data['modules'].add(module.name)
-                        message_data['tnrs'].append(('code', display_path, lineno))
-                        message_data['comments'].update(comments)
-
-        return result
 
 
 
@@ -252,4 +250,4 @@ def generate_pot(module_paths, module_name):
     write_pot([module_name], res, 'test.pot', False)
 
 
-generate_pot(['tests/addons/'], 'module_name')
+# generate_pot(['tests/addons/'], 'module_name')
