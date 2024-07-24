@@ -200,13 +200,6 @@ class DataFileExtractor:
                     translate_fields.add(field_name)
 
 
-    # push_translation(module, 'model', model + "," + field_name, 'xml_name', term)
-
-
-
-
-
-
 def write_pot(modules, rows, pot_path, lang):
     buffer = open(pot_path, 'wb')
     writer = PoFile(buffer)

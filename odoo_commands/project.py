@@ -2,9 +2,10 @@ import ast
 import functools
 import os
 import pathlib
+import typing
 from collections import ChainMap
 from pathlib import Path
-from functools import lru_cache
+from functools import lru_cache, cached_property
 from typing import Iterable, Container
 
 import dataclasses
@@ -13,9 +14,29 @@ from babel.core import Locale
 from odoo_commands.config import read_config, Config
 
 
+def adapt_version(version, serie):
+    """
+    Copy-paste from odoo/modules/module.py:adapt_version()
+    Adapt module version using Odoo major version.
+
+    >>> adapt_version('1.0', '15.0')
+    '15.0.1.0'
+    >>> adapt_version('15.0', '15.0')
+    '15.0.15.0'
+    >>> adapt_version('15.0.1.0.0', '15.0')
+    '15.0.1.0.0'
+    """
+    if version == serie or not version.startswith(serie + '.'):
+        version = '%s.%s' % (serie, version)
+    return version
+
+
 class Module:
     # TODO Add slots
     # __slots__ = ('path', 'name')
+
+    README_FILE_NAMES = ['README.rst', 'README.md', 'README.txt']
+    ICON_PATH = 'static/description/icon.png'
 
     # Default info from odoo/modules/module.py:load_information_from_description_file()
     default_info = {
@@ -27,13 +48,18 @@ class Module:
         'description': '',
         # 'icon': get_module_icon(module),
         'installable': True,
-        'license': 'LGPL-3',
-        'post_load': None,
+        'post_load': '',
         'version': '1.0',
         'web': False,
-        'website': 'https://www.odoo.com',
         'sequence': 100,
         'summary': '',
+        'website': '',
+
+        'data': [],
+        'demo': [],
+        'license': 'LGPL-3',
+        # Ignored fields: test, init_xml, update_xml, demo_xml,
+
     }
 
     _cache = {}
@@ -64,45 +90,75 @@ class Module:
     def __truediv__(self, path):
         return self.path / path
 
-    @property
-    @lru_cache(maxsize=None)
+    @cached_property
     def manifest(self):
         with open(self.path / '__manifest__.py') as manifest_file:
             return ast.literal_eval(manifest_file.read())
 
     def __getattr__(self, item):
+        if item == 'name':
+            raise ValueError('To get non-technical name of module use `shortdesc` attribute')
+        elif item == 'shortdesc':
+            item = 'name'
+
         if item in self.manifest:
             return self.manifest[item]
         else:
             return self.default_info[item]
 
-    @property
-    @lru_cache(maxsize=1)
+    @cached_property
+    def description(self):
+        module_description = self.__getattr__('description')
+        if module_description:
+            return module_description
+
+        for readme_file_name in self.README_FILE_NAMES:
+            readme_file_path = self / readme_file_name
+            if readme_file_path.is_file():
+                with open(readme_file_path) as description_file:
+                    return description_file.read()
+
+        return module_description
+
+    @cached_property
     def icon(self):
         if 'icon' in self.manifest:
             return self.manifest['icon']
         # Copy-paste from odoo/modules/module.py:get_module_icon()
-        icon_default_path = 'static/description/icon.png'
-        if (self.path / icon_default_path).exists():
-            return f'/{self.name}/{icon_default_path}'
-        return f'/base/{icon_default_path}'
+        module_icon_path = os.path.join(self.path, self.ICON_PATH)
+        if os.path.isfile(module_icon_path):
+            return module_icon_path
+        return '/base/' + self.ICON_PATH
 
-    @lru_cache(maxsize=1)
+    @lru_cache
     def version(self, serie):
-        # Copy-paste from odoo/modules/module.py:adapt_version()
-        version = self.__getattr__('version')
-        if version == serie or not version.startswith(serie + '.'):
-            version = '%s.%s' % (serie, version)
-        return version
+        return adapt_version(self.__getattr__('version'), serie)
 
     # TODO Read description from file
 
     def data_file_path(self):
         yield from self.manifest.get('data', [])
 
-    @property
-    def depends(self):
-        return self.manifest.get('depends', [])
+    # @property
+    # def depends(self):
+    #     return self.manifest.get('depends', [])
+
+    @cached_property
+    def auto_install(self):
+        """Manifest `auto_install` can be True, False or list of depends. Convert it to bool"""
+        auto_install = self.__getattr__('auto_install')
+        if isinstance(auto_install, typing.Iterable):
+            return True
+        return auto_install
+
+    @cached_property
+    def auto_install_depends(self):
+        auto_install = self.__getattr__('auto_install')
+        if auto_install is False:
+            return None
+        if auto_install is True:
+            return frozenset(self.depends)
+        return frozenset(auto_install)
 
     def _file_translations(self, po_file_name):
         from odoo.tools.translate import PoFileReader
@@ -144,7 +200,7 @@ def wrap(method):
     return wrapped_method
 
 
-class ModuleSet(set):# -> Set[Module]
+class ModuleSet(set):
     def names_list(self):
         return sorted(module.name for module in self)
 
