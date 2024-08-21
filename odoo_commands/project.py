@@ -59,8 +59,24 @@ class Module:
         'demo': [],
         'license': 'LGPL-3',
         # Ignored fields: test, init_xml, update_xml, demo_xml,
-
     }
+
+    OTHER_FIELD_NAMES = frozenset([
+        'name',
+        'summary',
+        'maintainer',
+        'contributors',
+        'external_dependencies',
+        'to_buy',   # ?
+        'assets',
+        'pre_init_hook',
+        'post_init_hook',
+        'uninstall_hook',
+        'images',
+        'images_preview_theme',
+        'snippet_lists',
+        'live_test_url',
+    ])
 
     _cache = {}
 
@@ -103,8 +119,12 @@ class Module:
 
         if item in self.manifest:
             return self.manifest[item]
-        else:
+        elif item in self.default_info:
             return self.default_info[item]
+        elif item in self.OTHER_FIELD_NAMES:
+            return None
+
+        raise AttributeError(f'Unknown attribute: {item!r}')
 
     @cached_property
     def description(self):
@@ -125,9 +145,8 @@ class Module:
         if 'icon' in self.manifest:
             return self.manifest['icon']
         # Copy-paste from odoo/modules/module.py:get_module_icon()
-        module_icon_path = os.path.join(self.path, self.ICON_PATH)
-        if os.path.isfile(module_icon_path):
-            return module_icon_path
+        if (self / self.ICON_PATH).is_file():
+            return f'/{self.name}/{self.ICON_PATH}'
         return '/base/' + self.ICON_PATH
 
     @lru_cache
