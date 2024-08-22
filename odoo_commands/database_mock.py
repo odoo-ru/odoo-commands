@@ -156,6 +156,15 @@ class FakeDatabase:
         if query == 'SELECT count(1) FROM "res_lang" WHERE ("res_lang"."active" = %s)':
             return [(1,)]
 
+        # No test mode
+        if query == "SELECT sequence_name FROM information_schema.sequences WHERE sequence_name='base_registry_signaling'":
+            return [('base_registry_signaling',)]
+
+        if query == """ SELECT base_registry_signaling.last_value,
+                                  base_cache_signaling.last_value
+                           FROM base_registry_signaling, base_cache_signaling""":
+            return [(1, 1)]
+
         raise NotImplementedError(f'Unknown SQL query:\n{query}\n\nparams: {params}')
 
     def select(self, table, fields, condition=lambda x: True, sort_key=None, row_type=tuple):
@@ -198,7 +207,7 @@ from odoo.sql_db import BaseCursor
 
 class CursorMock(BaseCursor):
     """Mocked Odoo cursor class"""
-    db: FakeDatabase = NotImplemented
+    databases = {}
 
     def __init__(self, pool, dbname, dsn, serialized=True):
         self.dbname = dbname
@@ -206,7 +215,11 @@ class CursorMock(BaseCursor):
         self.transaction = None
 
     def execute(self, query, params=None, log_exceptions=None):
-        self.result = self.db.execute(query, params)
+        database = self.databases.get(self.dbname)
+        if not database:
+            raise ValueError(f'There is no fake database: {self.dbname}')
+
+        self.result = database.execute(query, params)
 
     @staticmethod
     def _convert_to_tuple(row):

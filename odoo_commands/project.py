@@ -458,25 +458,20 @@ class OdooProject:
     @lru_cache(maxsize=1)
     def env(self):
         # Keep ref on generator force close generator later
-        self._env_generator = self._get_env_generator()
-        return next(self._env_generator)
+        # self._env_generator = self._get_env_generator()
+        # return next(self._env_generator)
+        return self._get_env('soma', self.installed_modules)
 
-    def _get_env_generator(self):
+    def _get_env(self, db_name, installed_modules: Module | ModuleSet):
         import mock
         from odoo_commands.database_mock import CursorMock, FakeDatabase
         import odoo
 
-        class CursorDbMock(CursorMock):
-            db = FakeDatabase(self.installed_modules)
+        CursorMock.databases[db_name] = FakeDatabase(installed_modules)
 
-        # TODO Try other way
-        odoo.modules.registry.Registry.in_test_mode = lambda self: True
-
-        with mock.patch('odoo.sql_db.Cursor', CursorDbMock):
-            with odoo.api.Environment.manage():
-                with odoo.registry('soma').cursor() as cr:
-                    print('2')
-                    yield odoo.api.Environment(cr, odoo.SUPERUSER_ID, {})
+        with mock.patch('odoo.sql_db.Cursor', CursorMock):
+            with odoo.registry(db_name).cursor() as cr:
+                return odoo.api.Environment(cr, odoo.SUPERUSER_ID, {})
 
     # ========== Translation ==========
     def search_translation(self, tupl, lang=None):
