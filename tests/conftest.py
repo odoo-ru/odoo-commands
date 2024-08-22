@@ -1,5 +1,5 @@
 import pathlib
-from odoo_commands.project import Module
+from odoo_commands.project import OdooModule
 
 import pytest
 
@@ -10,8 +10,8 @@ def project_path():
 
 @pytest.fixture()
 def module_a(project_path):
-    return Module(project_path / 'addons/module_a')
+    return OdooModule(project_path / 'addons/module_a')
 
 @pytest.fixture()
 def module_name(project_path):
-    return Module(project_path / 'addons/module_name')
+    return OdooModule(project_path / 'addons/module_name')

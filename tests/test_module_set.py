@@ -1,4 +1,4 @@
-from odoo_commands.project import ModuleSet, OdooProject, Module
+from odoo_commands.project import ModuleSet, OdooProject, OdooModule
 
 
 def test_operations():
@@ -16,8 +16,8 @@ def test_operations():
 def test_module_graph(project_path):
     project = OdooProject(project_path)
 
-    module_a = Module(project_path / 'addons/module_a')
-    module_b = Module(project_path / 'addons/module_b')
+    module_a = OdooModule(project_path / 'addons/module_a')
+    module_b = OdooModule(project_path / 'addons/module_b')
     modules = ModuleSet({module_a, module_b})
 
     assert modules.names() == {'module_a', 'module_b'}

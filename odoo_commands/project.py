@@ -31,7 +31,7 @@ def adapt_version(version, serie):
     return version
 
 
-class Module:
+class OdooModule:
     # TODO Add slots
     # __slots__ = ('path', 'name')
 
@@ -293,7 +293,7 @@ class OdooProject:
         for module_path in paths:
             for subdir in module_path.iterdir():
                 if subdir.name not in exclude and is_module(subdir):
-                    modules.add(Module(subdir))
+                    modules.add(OdooModule(subdir))
         return modules
 
     @lru_cache(maxsize=1024)
@@ -302,7 +302,7 @@ class OdooProject:
             module_path = modules_path / module_name
             if is_module(module_path):
                 # TODO Cache?
-                return Module(module_path)
+                return OdooModule(module_path)
         raise LookupError(f'No module found: {module_name}')
 
     def find_modules(self, module_names):
@@ -462,7 +462,7 @@ class OdooProject:
         # return next(self._env_generator)
         return self._get_env('soma', self.installed_modules)
 
-    def _get_env(self, db_name, installed_modules: Module | ModuleSet):
+    def _get_env(self, db_name, installed_modules: OdooModule | ModuleSet):
         import mock
         from odoo_commands.database_mock import CursorMock, FakeDatabase
         import odoo

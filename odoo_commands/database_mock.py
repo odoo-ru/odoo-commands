@@ -1,6 +1,6 @@
 import datetime
 
-from odoo_commands.project import Module, ModuleSet
+from odoo_commands.project import OdooModule, ModuleSet
 from functools import lru_cache
 
 SUPERUSER_ID = 1
@@ -54,7 +54,7 @@ class FakeDatabase:
         self.fill_module_table(installed_modules)
 
     @staticmethod
-    def _module_vals(module: Module):
+    def _module_vals(module: OdooModule):
         return {
             'name': module.name,
             'shortdesc': module.shortdesc,

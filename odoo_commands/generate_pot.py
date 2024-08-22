@@ -13,7 +13,7 @@ from odoo.tools import xml_translate, html_translate
 
 # from odoo_commands.config import read_config, odoo_project_config
 # from .createdb import OdooProject
-from odoo_commands.project import OdooProject, Module
+from odoo_commands.project import OdooProject, OdooModule
 # from odoo_commands.odoo_translate import PoFile
 
 
@@ -100,7 +100,7 @@ class DataFileExtractor:
 
         self.res = self.extract_from_source_code(module)
 
-    def extract_from_source_code(self, module: Module):
+    def extract_from_source_code(self, module: OdooModule):
         """
         Odoo 15: odoo.tools.translate.TranslationModuleReader._babel_extract_terms()
         """
