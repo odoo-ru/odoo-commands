@@ -1,260 +1,18 @@
-import ast
-import functools
 import os
-import pathlib
-import typing
-from collections import ChainMap
+
 from pathlib import Path
 from functools import lru_cache, cached_property
 from typing import Iterable, Container
-
 import dataclasses
-from babel.core import Locale
 
 from odoo_commands.config import read_config, Config
-
-
-def adapt_version(version, serie):
-    """
-    Copy-paste from odoo/modules/module.py:adapt_version()
-    Adapt module version using Odoo major version.
-
-    >>> adapt_version('1.0', '15.0')
-    '15.0.1.0'
-    >>> adapt_version('15.0', '15.0')
-    '15.0.15.0'
-    >>> adapt_version('15.0.1.0.0', '15.0')
-    '15.0.1.0.0'
-    """
-    if version == serie or not version.startswith(serie + '.'):
-        version = '%s.%s' % (serie, version)
-    return version
-
-
-class OdooModule:
-    # TODO Add slots
-    # __slots__ = ('path', 'name')
-
-    README_FILE_NAMES = ['README.rst', 'README.md', 'README.txt']
-    ICON_PATH = 'static/description/icon.png'
-
-    # Default info from odoo/modules/module.py:load_information_from_description_file()
-    default_info = {
-        'application': False,
-        'author': 'Odoo S.A.',
-        'auto_install': False,
-        'category': 'Uncategorized',
-        'depends': [],
-        'description': '',
-        # 'icon': get_module_icon(module),
-        'installable': True,
-        'post_load': '',
-        'version': '1.0',
-        'web': False,
-        'sequence': 100,
-        'summary': '',
-        'website': '',
-
-        'data': [],
-        'demo': [],
-        'license': 'LGPL-3',
-        # Ignored fields: test, init_xml, update_xml, demo_xml,
-    }
-
-    OTHER_FIELD_NAMES = frozenset([
-        'name',
-        'summary',
-        'maintainer',
-        'contributors',
-        'external_dependencies',
-        'to_buy',   # ?
-        'assets',
-        'pre_init_hook',
-        'post_init_hook',
-        'uninstall_hook',
-        'images',
-        'images_preview_theme',
-        'snippet_lists',
-        'live_test_url',
-    ])
-
-    _cache = {}
-
-    def __new__(cls, path, *args, **kwargs):
-        path = Path(path).resolve()
-        if not is_module(path):
-            raise ValueError()
-
-        if path in cls._cache:
-            return cls._cache[path]
-
-        instance = super().__new__(cls, *args, **kwargs)
-        instance.path = path
-        instance.name = path.name
-        cls._cache[path] = instance
-        return instance
-
-    def __repr__(self):
-        return f'OdooModule({self.name!r})'
-
-    def __eq__(self, other):
-        return self.path == other.path
-
-    def __hash__(self):
-        return self.path.__hash__()
-
-    def __truediv__(self, path):
-        return self.path / path
-
-    @cached_property
-    def manifest(self):
-        with open(self.path / '__manifest__.py') as manifest_file:
-            return ast.literal_eval(manifest_file.read())
-
-    def __getattr__(self, item):
-        if item == 'name':
-            raise ValueError('To get non-technical name of module use `shortdesc` attribute')
-        elif item == 'shortdesc':
-            item = 'name'
-
-        if item in self.manifest:
-            return self.manifest[item]
-        elif item in self.default_info:
-            return self.default_info[item]
-        elif item in self.OTHER_FIELD_NAMES:
-            return None
-
-        raise AttributeError(f'Unknown attribute: {item!r}')
-
-    @cached_property
-    def description(self):
-        module_description = self.__getattr__('description')
-        if module_description:
-            return module_description
-
-        for readme_file_name in self.README_FILE_NAMES:
-            readme_file_path = self / readme_file_name
-            if readme_file_path.is_file():
-                with open(readme_file_path) as description_file:
-                    return description_file.read()
-
-        return module_description
-
-    @cached_property
-    def icon(self):
-        if 'icon' in self.manifest:
-            return self.manifest['icon']
-        # Copy-paste from odoo/modules/module.py:get_module_icon()
-        if (self / self.ICON_PATH).is_file():
-            return f'/{self.name}/{self.ICON_PATH}'
-        return '/base/' + self.ICON_PATH
-
-    @lru_cache
-    def version(self, serie):
-        return adapt_version(self.__getattr__('version'), serie)
-
-    # TODO Read description from file
-
-    def data_file_path(self):
-        yield from self.manifest.get('data', [])
-
-    # @property
-    # def depends(self):
-    #     return self.manifest.get('depends', [])
-
-    @cached_property
-    def auto_install(self):
-        """Manifest `auto_install` can be True, False or list of depends. Convert it to bool"""
-        auto_install = self.__getattr__('auto_install')
-        if isinstance(auto_install, typing.Iterable):
-            return True
-        return auto_install
-
-    @cached_property
-    def auto_install_depends(self):
-        auto_install = self.__getattr__('auto_install')
-        if auto_install is False:
-            return None
-        if auto_install is True:
-            return frozenset(self.depends)
-        return frozenset(auto_install)
-
-    def _file_translations(self, po_file_name):
-        from odoo.tools.translate import PoFileReader
-
-        result = {}
-        for subdir in ['i18n_extra', 'i18n']:
-            po_file_path = self / subdir / po_file_name
-            if not po_file_path.exists():
-                continue
-            with open(po_file_path, 'rb') as f:
-                for translation in PoFileReader(f):
-                    trns = (
-                        translation['type'],
-                        translation['name'],
-                        translation['res_id'],
-                        translation['src'],
-                    )
-                    result[trns] = translation['value']
-
-        return result
-
-    @lru_cache()
-    def translations(self, locale_identifier):
-        locale = Locale.parse(locale_identifier)
-
-        base_trans = self._file_translations(f'{locale.language}.po')
-        if not locale.territory or locale.territory.lower() == locale.language:
-            return base_trans
-
-        # if locale.territory and locale.territory.lower() != locale.language:
-        spec_trans = self._file_translations(f'{locale_identifier}.po')
-        return ChainMap(spec_trans, base_trans)
-
-# https://stackoverflow.com/questions/798442/what-is-the-correct-or-best-way-to-subclass-the-python-set-class-adding-a-new
-def wrap(method):
-    @functools.wraps(method)
-    def wrapped_method(*args, **kwargs):
-        return ModuleSet(method(*args, **kwargs))
-    return wrapped_method
-
-
-class ModuleSet(set):
-    def names_list(self):
-        return sorted(module.name for module in self)
-
-    def names(self):
-        return {module.name for module in self}
-
-    def depends(self):
-        return set().union(*[module.depends for module in self]) - self.names()
-
-    def sorted(self):
-        return sorted(self, key=lambda m: m.name)
-
-    for method in [
-        '__or__',
-        '__and__',
-        '__sub__',
-        'difference',
-        'difference_update',
-        'intersection_update',
-        'symmetric_difference',
-        'symmetric_difference_update',
-        'intersection',
-        'union',
-        'copy',
-    ]:
-        exec(f'{method} = wrap(set.{method})')
-
-
-def is_module(path: Path):
-    return (path / '__manifest__.py').is_file()
+from odoo_commands.module import OdooModule, is_module
+from odoo_commands.module_set import OdooModuleSet
 
 
 class OdooProject:
     def __init__(self, path='.', modules=None, **options):
-        self.path = pathlib.Path(path).resolve()
+        self.path = Path(path).resolve()
         self.modules = modules
 
         config_dict = dataclasses.asdict(self.project_file_config)
@@ -280,7 +38,7 @@ class OdooProject:
         # We don't want to import odoo. It's long one second almost.
         import importlib
         odoo_path = importlib.util.find_spec('odoo').submodule_search_locations[0]
-        core_modules_path = pathlib.Path(odoo_path, 'addons').resolve()
+        core_modules_path = Path(odoo_path, 'addons').resolve()
 
         return (
             self.project_module_paths
@@ -289,7 +47,7 @@ class OdooProject:
         )
 
     def collect_modules(self, paths: Iterable[Path], exclude: Container[str] = ()):
-        modules = ModuleSet()
+        modules = OdooModuleSet()
         for module_path in paths:
             for subdir in module_path.iterdir():
                 if subdir.name not in exclude and is_module(subdir):
@@ -306,7 +64,7 @@ class OdooProject:
         raise LookupError(f'No module found: {module_name}')
 
     def find_modules(self, module_names):
-        return ModuleSet(self.module(module_name) for module_name in module_names)
+        return OdooModuleSet(self.module(module_name) for module_name in module_names)
 
     @property
     def required_modules(self):
@@ -330,8 +88,8 @@ class OdooProject:
 
         return modules
 
-    def auto_install_modules(self, modules: ModuleSet):
-        auto_install_modules = ModuleSet()
+    def auto_install_modules(self, modules: OdooModuleSet):
+        auto_install_modules = OdooModuleSet()
         for module in self.collect_modules(self.modules_paths, exclude=modules.names()):
             if module.auto_install and set(module.depends) <= modules.names():
                 auto_install_modules.add(module)
@@ -350,7 +108,7 @@ class OdooProject:
 
         return modules
 
-    def topologic_dependencies(self, modules: ModuleSet):
+    def topologic_dependencies(self, modules: OdooModuleSet):
         result = []
         visited = set()
 
@@ -462,7 +220,7 @@ class OdooProject:
         # return next(self._env_generator)
         return self._get_env('soma', self.installed_modules)
 
-    def _get_env(self, db_name, installed_modules: OdooModule | ModuleSet):
+    def _get_env(self, db_name, installed_modules: OdooModule | OdooModuleSet):
         import mock
         from odoo_commands.database_mock import CursorMock, FakeDatabase
         import odoo

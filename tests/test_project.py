@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from odoo_commands.project import OdooProject, OdooModule, ModuleSet
+from odoo_commands.project import OdooProject, OdooModule, OdooModuleSet
 
 
 class TestModule:
@@ -21,7 +21,7 @@ def test_topologic_dependencies(project_path):
     module = project.module('module_a')
     assert module.name == 'module_a'
 
-    module_list = project.topologic_dependencies(project.expand_dependencies(ModuleSet({module})))
+    module_list = project.topologic_dependencies(project.expand_dependencies(OdooModuleSet({module})))
     assert [module.name for module in module_list] == [
         'module_c',
         'module_b',
