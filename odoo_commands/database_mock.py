@@ -1,6 +1,6 @@
 import datetime
 
-from odoo_commands.project import OdooModule, ModuleSet
+from odoo_commands.project import OdooModule, OdooModuleSet
 from functools import lru_cache
 
 SUPERUSER_ID = 1
@@ -48,7 +48,7 @@ class FakeDatabase:
         'write_date',
     ]
 
-    def __init__(self, installed_modules: ModuleSet):
+    def __init__(self, installed_modules: OdooModuleSet):
         self.data = {}
         self.installed_modules = installed_modules
         self.fill_module_table(installed_modules)
@@ -79,7 +79,7 @@ class FakeDatabase:
             'to_buy': module.to_buy,
         }
 
-    def fill_module_table(self, installed_modules: ModuleSet):
+    def fill_module_table(self, installed_modules: OdooModuleSet):
         module_data = []
         now = datetime.datetime.now()
         for record_id, module in enumerate(installed_modules, start=1):

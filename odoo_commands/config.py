@@ -16,9 +16,4 @@ def read_config(path):
     with open(path) as config_file:
         config = tomlkit.load(config_file)
 
-    odoo_config = {}
-    if 'tool' in config:
-        odoo_config = config['tool'].get('odoo')
-        odoo_config = odoo_config.unwrap() if odoo_config else {}
-
-    return Config(**odoo_config)
+    return Config(**config.unwrap())

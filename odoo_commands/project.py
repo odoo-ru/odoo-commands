@@ -21,7 +21,7 @@ class OdooProject:
 
     @property
     def project_file_config(self):
-        return read_config(self.path / 'pyproject.toml')
+        return read_config(self.path / 'odoo-project.toml')
 
     @property
     def project_module_paths(self):

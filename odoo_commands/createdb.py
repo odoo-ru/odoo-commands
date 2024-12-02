@@ -3,6 +3,7 @@ import glob
 import hashlib
 import os
 import datetime
+import subprocess
 from functools import lru_cache
 from pprint import pprint
 from typing import Set
@@ -14,6 +15,7 @@ import time
 
 import logging
 
+from odoo_commands.module_set import OdooModuleSet
 from odoo_commands.project import OdooProject
 
 logger = logging.getLogger(__name__)
@@ -136,8 +138,7 @@ def cache_time_point_generator(dt=None):
         time.mktime(last_24th_sunday.timetuple()),
     ]
 
-# pprint(cache_time_point_generator_3())
-pprint(list(cache_time_point_generator_3([])))
+# pprint(list(cache_time_point_generator_3([])))
 
 
 # def read_manifest(module_dir):
@@ -178,7 +179,7 @@ def install(modules, cache_timestamps, level=0):
     return install_modules(database, modules - cache_timestamp_modules)
 
 
-def install_modules(database, modules_to_install):
+def install_modules(database, modules_to_install: OdooModuleSet):
     new_database = name()
     # cache
     copy_database(database, new_database)
@@ -186,8 +187,18 @@ def install_modules(database, modules_to_install):
     return new_database
 
 
-def create_database():
+def create_database(database: str):
     project = OdooProject()
-    cache_time_points = cache_time_point_generator()
-    return install(project.required_modules.expanded_dependencies(), cache_time_points)
+    modules_to_install = project.expand_dependencies(project.required_modules)
+    modules = ','.join(modules_to_install.names_list)
 
+    subprocess.check_call([
+        'odoo',
+        '--stop-after-init',
+        f'--database={database}',
+        f'--init={modules}',
+        '--without-demo=all',
+    ])
+
+    # cache_time_points = cache_time_point_generator()
+    # return install(project.expand_dependencies(project.required_modules), cache_time_points)

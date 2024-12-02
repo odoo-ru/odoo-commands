@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "odoo-commands"
-version = "0.1.1-dev"
+version = "0.2"
 description = "Project description"
 authors = ["Dmitry Voronin <dimka665@gmail.com>"]
 
@@ -19,10 +19,10 @@ classifiers = [
 python = "^3.10"
 #click_odoo = "^1.5.0"
 #click-odoo-contrib = "^1.15.0"
-manifestoo-core = "^0.10.2"
+manifestoo-core = "^1.4"
 typer = {extras = ["all"], version = "==0.9.0"}
 #Babel = "^2.11.0"
-tomlkit = "0.11.6"
+tomlkit = "^0.11"
 lxml = "<5"
 dataclasses = {version = "==0.8", python = ">=3.6,<3.7"}
 
